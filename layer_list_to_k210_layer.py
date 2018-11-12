@@ -55,6 +55,11 @@ class K210Conv:
         if self.layer.tensor_conv_x.shape[1:2] != self.layer.tensor_conv_y.shape[1:2]:
             raise ValueError('conv2d should use padding=SAME')
 
+        if self.layer.tensor_conv_x.shape[1] < 4:
+            tensor_name = self.layer.tensor_conv_x.name
+            tensor_height = self.layer.tensor_conv_x.shape[1]
+            raise ValueError('feature map required height>4 which {} height is {}'.format(tensor_name, tensor_height))
+
     @staticmethod
     def q(value, scale, bias):
         return (value - bias) / scale
