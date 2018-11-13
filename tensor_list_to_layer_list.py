@@ -175,8 +175,11 @@ class LayerDepthwiseConvolutional(LayerBase):
         self.config = {}
         self.tensor = info
         bias_add = None
+        batch_norm = None
         if self.type_match(info, ['Relu', 'FusedBatchNorm', 'BiasAdd', 'DepthwiseConv2dNative']):
             activation, batch_norm, bias_add, dwconv = info
+        elif self.type_match(info, ['Relu', 'BiasAdd', 'DepthwiseConv2dNative']):
+            activation, bias_add, dwconv = info
         elif self.type_match(info, ['Relu6', 'FusedBatchNorm', 'BiasAdd', 'DepthwiseConv2dNative']):
             activation, batch_norm, bias_add, dwconv = info
         elif self.type_match(info, ['Relu6', 'FusedBatchNorm', 'DepthwiseConv2dNative']):
@@ -218,7 +221,7 @@ class LayerDepthwiseConvolutional(LayerBase):
             self.config['activation'] = 'linear'
 
         self.weights = sess.run(dwconv.op.inputs[1])
-        self.bias = sess.run(bias_add.op.inputs[1]) if bias_add else None
+        self.bias = sess.run(bias_add.op.inputs[1]) if bias_add is not None else None
 
         if isinstance(batch_norm, list):
             self.batch_normalize_moving_mean = sess.run(bn_sub.op.inputs[1])
