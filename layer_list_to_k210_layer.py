@@ -51,6 +51,8 @@ def signed_to_hex(value, width):
     return hex(int((1 << width) + value) % (1 << width))
 
 
+
+
 class K210Conv:
     def __init__(self, layer, sess, dataset, idx, eight_bit_mode, input_min, input_max):
         self.layer = layer
@@ -231,12 +233,13 @@ class K210BN:
 
 
 class K210Act:
-    def __init__(self, layer, sess, dataset, name, eight_bit_mode):
+    def __init__(self, layer, sess, dataset, name, range_from_batch, eight_bit_mode):
         self.layer = layer
         self.sess = sess
         self.dataset = dataset
         self.name = name
         self.eight_bit_mode = eight_bit_mode
+        self.range_from_batch = range_from_batch
         self.min_y = None
         self.max_y = None
 
@@ -335,8 +338,7 @@ class K210Act:
 
     def collection(self):
         batch_y = self.sess.run(self.layer.tensor_activation, self.dataset)
-        self.min_y = min(batch_y.flatten())
-        self.max_y = max(batch_y.flatten())
+        self.min_y, self.max_y = self.range_from_batch(batch_y, self.layer.tensor_activation)
 
     def to_k210(self):
         self.collection()
@@ -425,7 +427,7 @@ class K210Layer:
         return locals()
 
 
-def gen_k210_layers(layers: [tensor_list_to_layer_list.LayerBase], sess, dataset, eight_bit_mode = False, input_min=0, input_max=1):
+def gen_k210_layers(layers: [tensor_list_to_layer_list.LayerBase], sess, dataset, range_from_batch, eight_bit_mode = False, input_min=0, input_max=1):
     buffer = list(layers)
     buffer.reverse()
     ret = []
@@ -462,7 +464,7 @@ def gen_k210_layers(layers: [tensor_list_to_layer_list.LayerBase], sess, dataset
                 bias_shape = conv_layer.bias.shape
                 cur_k210.bn = K210BN(0, 1, np.ones(bias_shape), conv_layer.bias, eight_bit_mode)
 
-            cur_k210.act = K210Act(conv_layer, sess, dataset, conv_layer.config['activation'], eight_bit_mode)
+            cur_k210.act = K210Act(conv_layer, sess, dataset, conv_layer.config['activation'], range_from_batch, eight_bit_mode=eight_bit_mode)
 
         if len(buffer) > 0 and isinstance(buffer[-1], tensor_list_to_layer_list.LayerMaxpool):
             pool_layer = buffer.pop()
