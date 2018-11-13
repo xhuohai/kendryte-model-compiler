@@ -23,6 +23,7 @@ import numpy as np
 
 from tensorflow.python.platform import gfile
 
+import range_from_batch
 import tensor_head_to_tensor_list
 import tensor_list_to_layer_list
 import layer_list_to_k210_layer
@@ -85,6 +86,7 @@ def convert(tensor_output, tensor_input, dataset_pack, eight_bit_mode=False, inp
         layers = tensor_list_to_layer_list.convert_to_layers(sess, converter.dst)
         k210_layers = layer_list_to_k210_layer.gen_k210_layers(
             layers, sess, dataset_pack,
+            range_from_batch=range_from_batch.RangeFromBatchMinMax98(),
             eight_bit_mode=eight_bit_mode,
             input_min=input_min,
             input_max=input_max
