@@ -37,7 +37,7 @@ def gen_weights(layers):
         assert (isinstance(layer, tensor_list_to_layer_list.LayerBase))
         if type(layer) in (
                 tensor_list_to_layer_list.LayerNet,
-                tensor_list_to_layer_list.LayerMaxpool
+                tensor_list_to_layer_list.LayerPool
         ):
             pass
         elif isinstance(layer, tensor_list_to_layer_list.LayerConvolutional) or \

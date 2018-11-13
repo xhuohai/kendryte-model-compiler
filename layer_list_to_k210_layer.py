@@ -370,10 +370,17 @@ class K210Pool:
                 raise ValueError("at {} unsupport padding mode SAME of pooling with size == 2".format(self.tensor.name))
 
     def to_k210(self):
-        if self.name == 'maxpool':
+        if self.tensor.op.type == 'MaxPool':
             return {'pool_type': {
                 (2, 2): 1,
+                (4, 2): 3,
                 (2, 1): 9
+            }[(self.size, self.stride)]}
+        elif self.tensor.op.type == 'AvgPool':
+            return {'pool_type': {
+                (2, 2): 2,
+                (4, 2): 4,
+                (2, 1): 8
             }[(self.size, self.stride)]}
         else:
             return None
@@ -466,9 +473,9 @@ def gen_k210_layers(layers: [tensor_list_to_layer_list.LayerBase], sess, dataset
 
             cur_k210.act = K210Act(conv_layer, sess, dataset, conv_layer.config['activation'], range_from_batch, eight_bit_mode=eight_bit_mode)
 
-        if len(buffer) > 0 and isinstance(buffer[-1], tensor_list_to_layer_list.LayerMaxpool):
+        if len(buffer) > 0 and isinstance(buffer[-1], tensor_list_to_layer_list.LayerPool):
             pool_layer = buffer.pop()
-            assert (isinstance(pool_layer, tensor_list_to_layer_list.LayerMaxpool))
+            assert (isinstance(pool_layer, tensor_list_to_layer_list.LayerPool))
             cur_k210.pool = K210Pool(pool_layer, 'maxpool', pool_layer.config['size'], pool_layer.config['stride'],
                                      sess, dataset)
 

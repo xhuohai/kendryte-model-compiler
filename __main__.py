@@ -31,6 +31,7 @@ import k210_layer_to_c_code
 
 current_dir = os.path.dirname(os.path.realpath(__file__))
 
+
 def load_graph(pb_file_path, tensor_output_name, tensor_input_name):
     if pb_file_path.endswith('h5'):
         import h5_converter
@@ -54,6 +55,7 @@ def load_graph(pb_file_path, tensor_output_name, tensor_input_name):
 
     return None
 
+
 def box_image(im_path, new_w, new_h):
     from PIL import Image
     orig = Image.open(im_path)
@@ -68,7 +70,7 @@ def box_image(im_path, new_w, new_h):
     else:
         n_w = int(w * h_scale)
 
-    ch_size = {'RGB':3}.get(orig.mode, 1)
+    ch_size = {'RGB': 3}.get(orig.mode, 1)
     resized = np.array(orig.resize([n_w, n_h]), dtype='float32') / 255.0
     resized = resized.reshape([*resized.shape, ch_size][:3])
 
@@ -78,6 +80,7 @@ def box_image(im_path, new_w, new_h):
     box_im[fill_y:fill_y + n_h, fill_x:fill_x + n_w, :] = resized
 
     return box_im, resized
+
 
 def convert(tensor_output, tensor_input, dataset_pack, eight_bit_mode=False, input_min=0, input_max=1):
     with tf.Session() as sess:
@@ -94,7 +97,6 @@ def convert(tensor_output, tensor_input, dataset_pack, eight_bit_mode=False, inp
 
         code = k210_layer_to_c_code.gen_layer_list_code(k210_layers, eight_bit_mode)
         return code
-
 
 
 def main():
@@ -155,19 +157,18 @@ def main():
         subprocess.call(['tensorboard', '--logdir', graphs_path])
         return
 
-
     tensor_output, tensor_input = load_graph(pb_path, tensor_output_name, tensor_input_name)
     if os.path.isdir(dataset_pic_path):
         import random
         all_files = os.listdir(dataset_pic_path)
-        all_files = random.sample(all_files, min(128, len(all_files))) # set maxmum dataset size
+        all_files = random.sample(all_files, min(128, len(all_files)))  # set maxmum dataset size
         dataset_file_list = [
             os.path.join(dataset_pic_path, f)
             for f in all_files
             if os.path.isfile(os.path.join(dataset_pic_path, f))
         ]
     else:
-        dataset_file_list = (dataset_pic_path, )
+        dataset_file_list = (dataset_pic_path,)
 
     dataset = np.array([box_image(path, image_w, image_h)[0].tolist() for path in dataset_file_list])
 
@@ -181,7 +182,8 @@ def main():
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, 'w') as of:
-            of.write(code)
+        of.write(code)
+
 
 if __name__ == '__main__':
     main()
