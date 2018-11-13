@@ -119,6 +119,9 @@ class PbConverter:
         elif self.ty_match(['Relu', 'FusedBatchNorm', 'DepthwiseConv2dNative']):
             self.dst.append(['depthwise_convolutional', *self.pop_src(0, 0, 0)])
             return True
+        elif self.ty_match(['Relu', 'BiasAdd', 'DepthwiseConv2dNative']):
+            self.dst.append(['depthwise_convolutional', *self.pop_src(0, 0, 0)])
+            return True
         elif self.ty_match(['Relu6', 'FusedBatchNorm', 'BiasAdd', 'DepthwiseConv2dNative']):
             self.dst.append(['depthwise_convolutional', *self.pop_src(0, 0, 0, 0)])
             return True
