@@ -55,43 +55,34 @@ def signed_to_hex(value, width):
 
 class K210Conv:
     def __init__(self, layer, sess, dataset, idx, eight_bit_mode, input_min, input_max, range_from_batch):
-        self.layer = layer
+        self.input_shape = layer.tensor_conv_x.shape
+        self.weights_shape = layer.tensor_conv_w.shape
+        self.output_shape = layer.tensor_conv_y.shape
+        self.weights = layer.weights
+        self.stride = layer.config['stride']
         self.depth_wise_layer = isinstance(layer, tensor_list_to_layer_list.LayerDepthwiseConvolutional)
-        self.tensor = layer.tensor
-        self.sess = sess
-        self.dataset = dataset
-        self.input_min = input_min
-        self.input_max = input_max
-        self.idx = idx
         self.eight_bit_mode = eight_bit_mode
-        self.range_from_batch = range_from_batch
 
-        self.x_range = None
-        self.x_bias = None
-        self.w_range = None
-        self.w_bias = None
+        self.x_range = input_max - input_min
+        self.x_bias = input_min
+        assert (self.x_range > 0)
 
-        if self.layer.tensor_conv_x.shape[1:2] != self.layer.tensor_conv_y.shape[1:2]:
+        w_min, w_max = range_from_batch(sess, layer.tensor_conv_w, dataset)
+        self.w_range = w_max - w_min
+        self.w_bias = w_min
+        assert (self.w_range > 0)
+
+        if layer.tensor_conv_x.shape[1:2] != layer.tensor_conv_y.shape[1:2]:
             raise ValueError('conv2d should use padding=SAME')
 
-        if self.layer.tensor_conv_x.shape[1] < 4:
-            tensor_name = self.layer.tensor_conv_x.name
-            tensor_height = self.layer.tensor_conv_x.shape[1]
+        if layer.tensor_conv_x.shape[1] < 4:
+            tensor_name = layer.tensor_conv_x.name
+            tensor_height = layer.tensor_conv_x.shape[1]
             raise ValueError('feature map required height>4 which {} height is {}'.format(tensor_name, tensor_height))
 
     @staticmethod
     def q(value, scale, bias):
         return (value - bias) / scale
-
-    def collection(self):
-        self.x_range = self.input_max - self.input_min
-        self.x_bias = self.input_min
-        assert (self.x_range > 0)
-
-        w_min, w_max = self.range_from_batch(self.sess, self.layer.tensor_conv_w, self.dataset)
-        self.w_range = w_max - w_min
-        self.w_bias = w_min
-        assert (self.w_range > 0)
 
     def para_mult_loads(self, weights_shape, output_shape, kernel_size):
         weight_buffer_size = 2 * 9 * 4096
@@ -141,10 +132,11 @@ class K210Conv:
         return load_time, para_size, o_ch_num_coef
 
     def to_k210(self):
-        self.collection()
-        input_shape = self.layer.tensor_conv_x.shape
-        output_shape = self.layer.tensor_conv_y.shape
-        weights_shape = self.layer.tensor_conv_w.shape
+        input_shape = self.input_shape
+        output_shape = self.output_shape
+        weights_shape = self.weights_shape
+        weights = self.weights
+        stride = self.stride
 
         weight_data_size = 1 if self.eight_bit_mode else 2
         kernel_size = int(weights_shape[0])
@@ -161,7 +153,7 @@ class K210Conv:
         pad_type = 0
         load_coor = 1
 
-        first_stride = 0 if self.layer.config['stride'] == 1 else 1
+        first_stride = 0 if stride == 1 else 1
         assert (256 > (i_col_high if first_stride == 0 else i_col_high / 2))
 
         load_time, para_size, o_ch_num_coef = self.para_mult_loads(weights_shape, output_shape, kernel_size)
@@ -180,7 +172,7 @@ class K210Conv:
         pad_value = -bx_div_sx
         swsx = scale_w * scale_x
 
-        weight_q = ((self.layer.weights-bias_w)/scale_w).transpose([3, 2, 0, 1])
+        weight_q = ((weights-bias_w)/scale_w).transpose([3, 2, 0, 1])
         para_start_addr = [int(round(item)) for item in np.reshape(weight_q, (np.product(weight_q.shape),))]
 
         return {
@@ -397,10 +389,10 @@ class K210Layer:
         if self.pool is not None:
             output_shape = self.pool.tensor.shape
         else:
-            output_shape = self.conv.layer.tensor_conv_y.shape
+            output_shape = self.conv.output_shape
 
-        weights_shape = self.conv.layer.tensor_conv_w.shape
-        input_shape = self.conv.layer.tensor_conv_x.shape
+        weights_shape = self.conv.weights_shape
+        input_shape = self.conv.input_shape
         i_row_wid = int(input_shape[1])
         img_data_size = 1
 
