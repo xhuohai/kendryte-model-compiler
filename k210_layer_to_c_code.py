@@ -18,6 +18,8 @@ import layer_list_to_k210_layer
 import numpy as np
 import math
 
+import range_from_batch
+
 default_conv_arg = None
 default_act_arg = None
 default_bn_arg = {
@@ -66,20 +68,11 @@ def gen_layer_struct(klayer: layer_list_to_k210_layer.K210Layer, idx: int):
     pool_arg = klayer.pool and klayer.pool.to_k210() or default_pool_arg
     io_arg = klayer.to_k210(idx)
 
+    mino, maxo = klayer.act.min_y, klayer.act.max_y
     if klayer.pool:
         tensor_out = klayer.pool.tensor
-        tensor_pre_out = klayer.pool.tensor.op.inputs[0]
-        batch_x = klayer.conv.sess.run(tensor_pre_out, klayer.conv.dataset)
-        ordered_x = np.sort(np.reshape(batch_x, [np.product(batch_x.shape)]))
-        batch_y = klayer.conv.sess.run(tensor_out, klayer.conv.dataset)
-        mino = ordered_x[0]
-        maxo = ordered_x[-1]
     else:
-        tensor_out = klayer.act.layer.tensor_activation
-        batch_y = klayer.conv.sess.run(tensor_out, klayer.conv.dataset)
-        ordered_o = np.sort(np.reshape(batch_y, [np.product(batch_y.shape)]))
-        mino = ordered_o[0]
-        maxo = ordered_o[-1]
+        tensor_out = klayer.act.tensor
 
     output_scale, output_bias = min_max_to_scale_bias(mino, maxo)
     print("[layer {}]".format(idx), tensor_out.op.name, 'scale/bias:', output_scale, output_bias)

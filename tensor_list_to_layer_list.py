@@ -15,6 +15,7 @@
  '''
 
 import tensorflow as tf
+import numpy as np
 
 
 class LayerBase:
@@ -121,6 +122,7 @@ class LayerConvolutional(LayerBase):
             self.config['activation'] = activation[0]
             self.tensor_activation = activation[1]
         elif activation is not None:
+            assert (isinstance(activation, tf.Tensor))
             self.config['activation'] = activation.op.type
         else:
             self.config['activation'] = 'linear'
@@ -135,6 +137,7 @@ class LayerConvolutional(LayerBase):
             self.batch_normalize_gamma = sess.run(bn_mul.op.inputs[1])
             self.batch_normalize_beta = sess.run(bn_add.op.inputs[1])
         elif batch_norm is not None:
+            assert (isinstance(batch_norm, tf.Tensor))
             if 'gamma/read' not in batch_norm.op.inputs[1].name:
                 print('[warning] gamma/read should in name:', batch_norm.op.inputs[1].name)
             if 'beta/read' not in batch_norm.op.inputs[2].name:
@@ -163,10 +166,14 @@ class LayerConvolutional(LayerBase):
                 self.batch_normalize_moving_mean = sess.run(mean_tensor)
                 self.batch_normalize_moving_variance = sess.run(variance_tensor)
 
+            assert (isinstance(self.batch_normalize_moving_mean, np.ndarray))
             if self.batch_normalize_moving_mean.size == 0:
                 self.batch_normalize_moving_mean = 0
+
+            assert (isinstance(self.batch_normalize_moving_variance, np.ndarray))
             if self.batch_normalize_moving_variance.size == 0:
                 self.batch_normalize_moving_variance = 1
+
 
 class LayerDepthwiseConvolutional(LayerBase):
     def __init__(self, sess, info):
@@ -175,8 +182,11 @@ class LayerDepthwiseConvolutional(LayerBase):
         self.config = {}
         self.tensor = info
         bias_add = None
+        batch_norm = None
         if self.type_match(info, ['Relu', 'FusedBatchNorm', 'BiasAdd', 'DepthwiseConv2dNative']):
             activation, batch_norm, bias_add, dwconv = info
+        elif self.type_match(info, ['Relu', 'BiasAdd', 'DepthwiseConv2dNative']):
+            activation, bias_add, dwconv = info
         elif self.type_match(info, ['Relu6', 'FusedBatchNorm', 'BiasAdd', 'DepthwiseConv2dNative']):
             activation, batch_norm, bias_add, dwconv = info
         elif self.type_match(info, ['Relu6', 'FusedBatchNorm', 'DepthwiseConv2dNative']):
@@ -196,6 +206,7 @@ class LayerDepthwiseConvolutional(LayerBase):
         self.tensor_conv_w = dwconv.op.inputs[1]
         self.tensor_conv_x = dwconv.op.inputs[0]
         self.tensor_conv_y = dwconv
+        self.weights = sess.run(self.tensor_conv_w)
         # self.tensor_activation = activation or batch_norm or bais_add
         if activation is not None:
             self.tensor_activation = activation
@@ -213,19 +224,21 @@ class LayerDepthwiseConvolutional(LayerBase):
             self.config['activation'] = activation[0]
             self.tensor_activation = activation[1]
         elif activation is not None:
+            assert (isinstance(activation, tf.Tensor))
             self.config['activation'] = activation.op.type
         else:
             self.config['activation'] = 'linear'
 
-        self.weights = sess.run(dwconv.op.inputs[1])
-        self.bias = sess.run(bias_add.op.inputs[1]) if bias_add else None
+        self.bias = sess.run(bias_add.op.inputs[1]) if bias_add is not None else None
 
         if isinstance(batch_norm, list):
+            bn_add, bn_mul, bn_div, bn_sub = batch_norm
             self.batch_normalize_moving_mean = sess.run(bn_sub.op.inputs[1])
             self.batch_normalize_moving_variance = sess.run(bn_div.op.inputs[1])
             self.batch_normalize_gamma = sess.run(bn_mul.op.inputs[1])
             self.batch_normalize_beta = sess.run(bn_add.op.inputs[1])
         elif batch_norm is not None:
+            assert (isinstance(batch_norm, tf.Tensor))
             assert ('gamma/read' in batch_norm.op.inputs[1].name)
             assert ('beta/read' in batch_norm.op.inputs[2].name)
             self.batch_normalize_gamma = sess.run(batch_norm.op.inputs[1])
@@ -250,24 +263,17 @@ class LayerDepthwiseConvolutional(LayerBase):
                 self.batch_normalize_moving_variance = sess.run(variance_tensor)
 
 
-
-
-class LayerMaxpool(LayerBase):
+class LayerPool(LayerBase):
     def __init__(self, sess, info):
         super().__init__()
-        self.name = 'maxpool'
         self.config = {}
-        self.tensor = info
         self.tensor_pool = info[0]
-        if self.type_match(info, ['MaxPool']):
-            max_pool = info[0]
-        else:
-            print('not supported maxpool info.')
-            return
+        if self.tensor_pool.op.type not in ('MaxPool', 'AvgPool'):
+            raise 'not supported pooling {}'.format(self.tensor_pool.op.type)
 
-        assert (isinstance(max_pool, tf.Tensor))
-        self.config['size'] = max_pool.op.get_attr('ksize')[1]
-        self.config['stride'] = max_pool.op.get_attr('strides')[1]
+        assert (isinstance(self.tensor_pool, tf.Tensor))
+        self.config['size'] = self.tensor_pool.op.get_attr('ksize')[1]
+        self.config['stride'] = self.tensor_pool.op.get_attr('strides')[1]
 
 
 def convert_layer(sess, info):
@@ -279,8 +285,8 @@ def convert_layer(sess, info):
         return LayerConvolutional(sess, info)
     elif ty == 'depthwise_convolutional':
         return LayerDepthwiseConvolutional(sess, info)
-    elif ty == 'maxpool':
-        return LayerMaxpool(sess, info)
+    elif ty == 'pool':
+        return LayerPool(sess, info)
     else:
         print('unknown type:', ty)
 
