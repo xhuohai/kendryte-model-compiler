@@ -434,6 +434,9 @@ class K210Layer:
         return locals()
 
 
+def k210_layer_post_fix(klayer : K210Layer):
+    return klayer
+
 def gen_k210_layers(layers: [tensor_list_to_layer_list.LayerBase], sess, dataset, range_from_batch, eight_bit_mode = False, input_min=0, input_max=1):
     buffer = list(layers)
     buffer.reverse()
@@ -479,6 +482,7 @@ def gen_k210_layers(layers: [tensor_list_to_layer_list.LayerBase], sess, dataset
             cur_k210.pool = K210Pool(pool_layer, 'maxpool', pool_layer.config['size'], pool_layer.config['stride'],
                                      sess, dataset)
 
-        ret.append(cur_k210)
+        cur_k210_fixed = k210_layer_post_fix(cur_k210)
+        ret.append(cur_k210_fixed) if isinstance(cur_k210_fixed, K210Layer) else ret.extend(cur_k210_fixed)
 
     return ret

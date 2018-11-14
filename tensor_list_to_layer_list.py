@@ -17,6 +17,7 @@
 import tensorflow as tf
 import numpy as np
 
+
 class LayerBase:
     def __init__(self):
         self.name = 'no_name'
@@ -165,11 +166,11 @@ class LayerConvolutional(LayerBase):
                 self.batch_normalize_moving_mean = sess.run(mean_tensor)
                 self.batch_normalize_moving_variance = sess.run(variance_tensor)
 
-            assert(isinstance(self.batch_normalize_moving_mean, np.ndarray))
+            assert (isinstance(self.batch_normalize_moving_mean, np.ndarray))
             if self.batch_normalize_moving_mean.size == 0:
                 self.batch_normalize_moving_mean = 0
 
-            assert(isinstance(self.batch_normalize_moving_variance, np.ndarray))
+            assert (isinstance(self.batch_normalize_moving_variance, np.ndarray))
             if self.batch_normalize_moving_variance.size == 0:
                 self.batch_normalize_moving_variance = 1
 
@@ -268,7 +269,7 @@ class LayerPool(LayerBase):
         self.config = {}
         self.tensor_pool = info[0]
         if self.tensor_pool.op.type not in ('MaxPool', 'AvgPool'):
-            assert ('not supported pooling {}', self.tensor_pool.op.type)
+            raise 'not supported pooling {}'.format(self.tensor_pool.op.type)
 
         assert (isinstance(self.tensor_pool, tf.Tensor))
         self.config['size'] = self.tensor_pool.op.get_attr('ksize')[1]
