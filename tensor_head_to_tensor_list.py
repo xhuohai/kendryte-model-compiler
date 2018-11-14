@@ -14,8 +14,6 @@
  * limitations under the License.
  '''
 
-import tensorflow as tf
-
 
 class PbConverter:
     def __init__(self, output_tensor, input_tensor=None):
@@ -105,9 +103,12 @@ class PbConverter:
         else:
             return False
 
-    def try_maxpool(self):
+    def try_pool(self):
         if self.ty_match(['MaxPool']):
-            self.dst.append(['maxpool', *self.pop_src(0)])
+            self.dst.append(['pool', *self.pop_src(0)])
+            return True
+        elif self.ty_match(['AvgPool']):
+            self.dst.append(['pool', *self.pop_src(0)])
             return True
         else:
             return False
@@ -117,6 +118,9 @@ class PbConverter:
             self.dst.append(['depthwise_convolutional', *self.pop_src(0, 0, 0, 0)])
             return True
         elif self.ty_match(['Relu', 'FusedBatchNorm', 'DepthwiseConv2dNative']):
+            self.dst.append(['depthwise_convolutional', *self.pop_src(0, 0, 0)])
+            return True
+        elif self.ty_match(['Relu', 'BiasAdd', 'DepthwiseConv2dNative']):
             self.dst.append(['depthwise_convolutional', *self.pop_src(0, 0, 0)])
             return True
         elif self.ty_match(['Relu6', 'FusedBatchNorm', 'BiasAdd', 'DepthwiseConv2dNative']):
@@ -154,7 +158,7 @@ class PbConverter:
             self.try_input,
             self.try_reshape,
             self.try_convolutional,
-            self.try_maxpool,
+            self.try_pool,
             self.try_depthwise_convolutional,
             self.try_placeholder,
         )
