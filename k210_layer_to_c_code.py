@@ -72,7 +72,7 @@ def gen_layer_struct(klayer: layer_list_to_k210_layer.K210Layer, idx: int):
     if klayer.pool:
         tensor_out = klayer.pool.tensor
     else:
-        tensor_out = klayer.act.layer.tensor_activation
+        tensor_out = klayer.act.tensor
 
     output_scale, output_bias = min_max_to_scale_bias(mino, maxo)
     print("[layer {}]".format(idx), tensor_out.op.name, 'scale/bias:', output_scale, output_bias)

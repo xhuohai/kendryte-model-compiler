@@ -15,13 +15,15 @@
  '''
 
 class RangeFromBatchMinMax:
-    def __call__(self, batch, tensor):
+    def __call__(self, sess, tensor, dataset):
+        batch = sess.run(tensor, dataset)
         minv = min(batch.flatten())
         maxv = max(batch.flatten())
         return minv, maxv
 
 class RangeFromBatchMinMax98:
-    def __call__(self, batch, tensor):
+    def __call__(self, sess, tensor, dataset):
+        batch = sess.run(tensor, dataset)
         batch_s = sorted(batch.flatten())
         assert(batch.size > 100)
         minv = batch_s[round(len(batch_s)*0.01)]
@@ -29,7 +31,8 @@ class RangeFromBatchMinMax98:
         return minv, maxv
 
 class RangeFromBatchMinMax90:
-    def __call__(self, batch, tensor):
+    def __call__(self, sess, tensor, dataset):
+        batch = sess.run(tensor, dataset)
         batch_s = sorted(batch.flatten())
         assert(batch.size > 100)
         minv = batch_s[round(len(batch_s)*0.05)]
@@ -37,7 +40,8 @@ class RangeFromBatchMinMax90:
         return minv, maxv
 
 class RangeFromBatchMinMax80:
-    def __call__(self, batch, tensor):
+    def __call__(self, sess, tensor, dataset):
+        batch = sess.run(tensor, dataset)
         batch_s = sorted(batch.flatten())
         assert(batch.size > 100)
         minv = batch_s[round(len(batch_s)*0.1)]
