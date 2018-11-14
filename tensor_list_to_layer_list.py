@@ -206,6 +206,7 @@ class LayerDepthwiseConvolutional(LayerBase):
         self.tensor_conv_w = dwconv.op.inputs[1]
         self.tensor_conv_x = dwconv.op.inputs[0]
         self.tensor_conv_y = dwconv
+        self.weights = sess.run(self.tensor_conv_w)
         # self.tensor_activation = activation or batch_norm or bais_add
         if activation is not None:
             self.tensor_activation = activation
@@ -228,7 +229,6 @@ class LayerDepthwiseConvolutional(LayerBase):
         else:
             self.config['activation'] = 'linear'
 
-        self.weights = sess.run(dwconv.op.inputs[1])
         self.bias = sess.run(bias_add.op.inputs[1]) if bias_add is not None else None
 
         if isinstance(batch_norm, list):
