@@ -194,18 +194,18 @@ def gen_layer_code(dlayer, idx):
             '\n}')
 
 
-def gen_bn_code(dlayer, idx):
+def gen_bn_code(dlayer, idx, prefix):
     bn_list = dlayer[0]['kernel_pool_type_cfg']['bwsx_base_addr']
     bn_code_list = [(' {.batchnorm.data = {' +
                      '.norm_mul = ' + str(bn['norm_mul']) + ', ' +
                      '.norm_add = ' + str(bn['norm_add']) + ', ' +
                      '.norm_shift = ' + str(bn['norm_shift']) +
                      '}}') for bn in bn_list]
-    return 'kpu_batchnorm_argument_t bwsx_base_addr_' + str(
+    return 'kpu_batchnorm_argument_t ' + prefix + 'bwsx_base_addr_' + str(
         idx) + '[] __attribute__((aligned(128))) = {\n' + ',\n'.join(bn_code_list) + '\n};'
 
 
-def gen_act_code(dlayer, idx):
+def gen_act_code(dlayer, idx, prefix):
     act_list = dlayer[0]['kernel_calc_type_cfg']['active_addr']
     active_para = ' .activate_para = {\n' + ',\n'.join([
         '  {{.data = {{.shift_number={dxs}, .y_mul={dy}, .x_start={x} }}}}'.format(
@@ -222,12 +222,12 @@ def gen_act_code(dlayer, idx):
             ' .activate_para_bias1.data = {{\n  .result_bias = {{{},{},{},{},{},{},{},{}}}\n }}'
     ).format(*(bias_list[8:]))
 
-    return 'kpu_activate_table_t active_addr_' + str(idx) + ' __attribute__((aligned(128))) = {\n' + \
+    return 'kpu_activate_table_t ' + prefix + 'active_addr_' + str(idx) + ' __attribute__((aligned(128))) = {\n' + \
            ',\n'.join([active_para, active_para_bias0, active_para_bias1]) + \
            '\n};'
 
 
-def gen_weights_code(dlayer, idx, eight_bit_mode):
+def gen_weights_code(dlayer, idx, eight_bit_mode, prefix):
     weights = dlayer[0]['kernel_load_cfg']['para_start_addr']
     weights_data = ', '.join([
         ('\n' if i % 64 == 0 else '') +
@@ -236,25 +236,26 @@ def gen_weights_code(dlayer, idx, eight_bit_mode):
     ])
     para_type = 'uint8_t' if eight_bit_mode else 'uint16_t'
     return para_type + \
-           ' para_start_addr_{idx}[] __attribute__((aligned(128))) = {{{data}}};'.format(idx=idx, data=weights_data)
+           ' {prefix}para_start_addr_{idx}[] __attribute__((aligned(128))) = {{{data}}};'\
+               .format(idx=idx, data=weights_data, prefix=prefix)
 
 
-def gen_layer_list_code(klayers: [layer_list_to_k210_layer.K210Layer], eight_bit_mode):
+def gen_layer_list_code(klayers: [layer_list_to_k210_layer.K210Layer], eight_bit_mode, prefix):
     structs = gen_layer_list_struct(klayers)
     output_scale, output_bias = structs[-1][1]
 
     header_part = '#include "kpu.h"'
     footer_part = '\n'.join([
-        'kpu_task_t* kpu_task_init(kpu_task_t* task){',
+        'kpu_task_t* kpu_task_' + prefix + 'init(kpu_task_t* task){',
         ' \n'.join([
-            ' la[{idx}].kernel_pool_type_cfg.data.bwsx_base_addr = (uint64_t)&bwsx_base_addr_{idx};\n'
-            ' la[{idx}].kernel_calc_type_cfg.data.active_addr = (uint64_t)&active_addr_{idx};\n'
-            ' la[{idx}].kernel_load_cfg.data.para_start_addr = (uint64_t)&para_start_addr_{idx};'
-                .format(idx=idx)
+            ' {prefix}la[{idx}].kernel_pool_type_cfg.data.bwsx_base_addr = (uint64_t)&{prefix}bwsx_base_addr_{idx};\n'
+            ' {prefix}la[{idx}].kernel_calc_type_cfg.data.active_addr = (uint64_t)&{prefix}active_addr_{idx};\n'
+            ' {prefix}la[{idx}].kernel_load_cfg.data.para_start_addr = (uint64_t)&{prefix}para_start_addr_{idx};'
+                .format(idx=idx, prefix=prefix)
             for idx in range(len(structs))
         ]),
-        ' task->layers = la;',
-        ' task->layers_length = sizeof(la)/sizeof(la[0]);',
+        ' task->layers = {prefix}la;'.format(prefix=prefix),
+        ' task->layers_length = sizeof({prefix}la)/sizeof({prefix}la[0]);'.format(prefix=prefix),
         ' task->eight_bit_mode = {};'.format(str(1 if eight_bit_mode else 0)),
         ' task->output_scale = {};'.format(output_scale),
         ' task->output_bias = {};'.format(output_bias),
@@ -262,23 +263,23 @@ def gen_layer_list_code(klayers: [layer_list_to_k210_layer.K210Layer], eight_bit
         '}'
     ])
 
-    layer_part = 'kpu_layer_argument_t la[] __attribute__((aligned(128))) = {\n' + ',\n'.join([
+    layer_part = 'kpu_layer_argument_t ' + prefix + 'la[] __attribute__((aligned(128))) = {\n' + ',\n'.join([
         gen_layer_code(layer, idx)
         for layer, idx in zip(structs, range(len(structs)))
     ]) + '};'
 
     bn_part = [
-        gen_bn_code(layer, idx)
+        gen_bn_code(layer, idx, prefix)
         for layer, idx in zip(structs, range(len(structs)))
     ]
 
     act_part = [
-        gen_act_code(layer, idx)
+        gen_act_code(layer, idx, prefix)
         for layer, idx in zip(structs, range(len(structs)))
     ]
 
     weights_part = [
-        gen_weights_code(layer, idx, eight_bit_mode)
+        gen_weights_code(layer, idx, eight_bit_mode, prefix)
         for layer, idx in zip(structs, range(len(structs)))
     ]
 
