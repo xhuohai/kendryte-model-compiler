@@ -168,11 +168,11 @@ class LayerConvolutional(LayerBase):
 
             assert (isinstance(self.batch_normalize_moving_mean, np.ndarray))
             if self.batch_normalize_moving_mean.size == 0:
-                self.batch_normalize_moving_mean = 0
+                raise ValueError('can not find moving_mean values, use is_training=False in {} may help.'.format(batch_norm.name))
 
             assert (isinstance(self.batch_normalize_moving_variance, np.ndarray))
             if self.batch_normalize_moving_variance.size == 0:
-                self.batch_normalize_moving_variance = 1
+                raise ValueError('can not find moving_variance values, use is_training=False in {} may help.'.format(batch_norm.name))
 
 
 class LayerDepthwiseConvolutional(LayerBase):
