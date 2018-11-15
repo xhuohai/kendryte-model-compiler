@@ -82,7 +82,7 @@ def box_image(im_path, new_w, new_h):
     return box_im, resized
 
 
-def convert(tensor_output, tensor_input, dataset_pack, eight_bit_mode=False, input_min=0, input_max=1):
+def convert(tensor_output, tensor_input, dataset_pack, eight_bit_mode=False, input_min=0, input_max=1, prefix=''):
     with tf.Session() as sess:
         converter = tensor_head_to_tensor_list.PbConverter(tensor_output, tensor_input)
         converter.convert()
@@ -95,7 +95,7 @@ def convert(tensor_output, tensor_input, dataset_pack, eight_bit_mode=False, inp
             input_max=input_max
         )
 
-        code = k210_layer_to_c_code.gen_layer_list_code(k210_layers, eight_bit_mode)
+        code = k210_layer_to_c_code.gen_layer_list_code(k210_layers, eight_bit_mode, prefix)
         return code
 
 
@@ -110,17 +110,18 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--tensorboard_mode', type=str2bool, nargs='?', const=True, default=False)
-    parser.add_argument('--pb_path', type=str, default='<please set --pb_path>')
+    parser.add_argument('--pb_path', type=str, default='<please set --pb_path>', required=True)
     parser.add_argument('--tensor_input_name', default=None)
     parser.add_argument('--tensor_output_name', default=None)
     parser.add_argument('--tensor_input_min', type=float, default=0)
     parser.add_argument('--tensor_input_max', type=float, default=1)
     parser.add_argument('--dataset_input_name', default='input:0')
-    parser.add_argument('--dataset_pic_path', default='pic/yolo')
+    parser.add_argument('--dataset_pic_path', default='dataset/yolo')
     parser.add_argument('--image_w', type=int, default=320)
     parser.add_argument('--image_h', type=int, default=240)
     parser.add_argument('--eight_bit_mode', type=str2bool, nargs='?', const=True, default=False)
     parser.add_argument('--output_path', default='build/gencode_output.c')
+    parser.add_argument('--prefix', default='')
 
     # Deprecated
     parser.add_argument('--tensor_head_name', default=None)
@@ -144,6 +145,7 @@ def main():
     image_h = args.image_h
     eight_bit_mode = args.eight_bit_mode
     output_path = args.output_path
+    prefix = args.prefix
 
     if ':' not in dataset_input_name:
         dataset_input_name = dataset_input_name + ':0'
@@ -177,7 +179,8 @@ def main():
         {dataset_input_name: dataset},
         eight_bit_mode=eight_bit_mode,
         input_min=input_min,
-        input_max=input_max
+        input_max=input_max,
+        prefix=prefix
     )
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
