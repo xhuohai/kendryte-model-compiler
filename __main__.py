@@ -110,7 +110,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--tensorboard_mode', type=str2bool, nargs='?', const=True, default=False)
-    parser.add_argument('--pb_path', type=str, default='<please set --pb_path>')
+    parser.add_argument('--pb_path', type=str, default='<please set --pb_path>', required=True)
     parser.add_argument('--tensor_input_name', default=None)
     parser.add_argument('--tensor_output_name', default=None)
     parser.add_argument('--tensor_input_min', type=float, default=0)
