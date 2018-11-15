@@ -77,7 +77,6 @@ def gen_layer_struct(klayer: layer_list_to_k210_layer.K210Layer, idx: int):
     output_scale, output_bias = min_max_to_scale_bias(mino, maxo)
     print("[layer {}]".format(idx), tensor_out.op.name, 'scale/bias:', output_scale, output_bias)
 
-
     img_input_size = int(math.ceil(io_arg['i_ch_num'] / conv_arg['coef_group']) * 64 * conv_arg['channel_switch_addr'])
     img_output_size = int(math.ceil(io_arg['o_ch_num'] / io_arg['wb_group']) * 64 * io_arg['wb_channel_switch_addr'])
 
