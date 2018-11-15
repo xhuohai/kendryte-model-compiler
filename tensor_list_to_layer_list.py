@@ -141,14 +141,14 @@ class LayerConvolutional(LayerBase):
             if 'gamma/read' not in batch_norm.op.inputs[1].name:
                 print('[warning] gamma/read should in name:', batch_norm.op.inputs[1].name)
             if 'beta/read' not in batch_norm.op.inputs[2].name:
-                print('[warning] beta/read should in name:', batch_norm.op.inputs[1].name)
+                print('[warning] beta/read should in name:', batch_norm.op.inputs[2].name)
 
             self.batch_normalize_gamma = sess.run(batch_norm.op.inputs[1])
             self.batch_normalize_beta = sess.run(batch_norm.op.inputs[2])
             if len(batch_norm.op.inputs) == 5:
-                if 'gamma/read' not in batch_norm.op.inputs[1].name:
+                if 'moving_mean/read' not in batch_norm.op.inputs[3].name:
                     print('[warning] moving_mean/read should in name:', batch_norm.op.inputs[3].name)
-                if 'beta/read' not in batch_norm.op.inputs[2].name:
+                if 'moving_variance/read' not in batch_norm.op.inputs[4].name:
                     print('[warning] moving_variance/read should in name:', batch_norm.op.inputs[4].name)
                 self.batch_normalize_moving_mean = sess.run(batch_norm.op.inputs[3])
                 self.batch_normalize_moving_variance = sess.run(batch_norm.op.inputs[4])
