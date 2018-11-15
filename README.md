@@ -10,7 +10,7 @@ pip3 install pillow
 clone the model-compiler. \
 convert `.pb` file to k210
 ```sh
-python3 model-compiler --pb_path <your pb file> --tensorboard-mode
+python3 model-compiler --pb_path <your pb file> --tensorboard_mode
 ```
 check your inout tensor name and your output tensor name,
 check your input dataset image width and height.
