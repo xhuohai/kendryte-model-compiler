@@ -16,6 +16,20 @@
 
 import tensorflow as tf
 
+
+
+#
+# def Batch_Normalize(data,scale,mean,variance,epsilon=1e-6,
+# 					scope = "Batch_Normalize",
+# 					reuse = False):
+# 	with tf.variable_scope(scope, reuse=reuse):
+# 		return tf.multiply((data-mean)/(tf.sqrt(variance)+epsilon), scale)
+#
+#
+# my_out = Batch_Normalize(my_out, bn_scale, bn_mean, bn_variance,
+#                          scope="BN", reuse=reuse)
+
+
 def k210_sub_layer_conv(prev, weights, strides):
     return tf.nn.conv2d(
         prev, weights,
@@ -47,3 +61,13 @@ def k210_layer(prev, conv_args, bn_args, activation_function, pooling_function):
     l3 = activation_function(l2)
     l4 = pooling_function(l3)
     return l4
+
+def export_model(output_tensor, output_dir, output_filename):
+    from tensorflow.python.framework.graph_util import convert_variables_to_constants
+
+    # # Tensorflow session
+    sess1 = tf.Session()
+    sess1.run(tf.global_variables_initializer())
+
+    graph = convert_variables_to_constants(sess1, sess1.graph_def, [output_tensor.name.split(':')[0]])
+    tf.train.write_graph(graph, output_dir, output_filename, as_text=False)
