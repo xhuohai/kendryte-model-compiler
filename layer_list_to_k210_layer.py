@@ -51,6 +51,8 @@ def signed_to_hex(value, width):
     return hex(int((1 << width) + value) % (1 << width))
 
 
+
+
 class K210Conv:
     def __init__(self, layer, sess, dataset, idx, eight_bit_mode, input_min, input_max, range_from_batch):
         self.input_shape = layer.tensor_conv_x.shape
@@ -69,7 +71,7 @@ class K210Conv:
         self.w_range = w_max - w_min
         self.w_bias = w_min
         assert (self.w_range > 0)
-
+        
         if layer.tensor_conv_x.shape[1:2] != layer.tensor_conv_y.shape[1:2]:
             raise ValueError('conv2d should use padding=SAME')
 
@@ -447,7 +449,6 @@ def make_k210_layer(sess, dataset, buffer, idx, last_min, last_max, eight_bit_mo
 
     return cur_k210
 
-
 def make_id_layer(base_tensor, min_v, max_v, eight_bit_mode, range_from_batch):
     o_ch = base_tensor.shape[1]
     cur_k210 = K210Layer(eight_bit_mode)
@@ -456,7 +457,6 @@ def make_id_layer(base_tensor, min_v, max_v, eight_bit_mode, range_from_batch):
     cur_k210.act = K210Act(base_tensor, min_v, max_v, 'linear', eight_bit_mode=eight_bit_mode)
     cur_k210.pool = None
     return cur_k210
-
 
 def k210_layer_post_fix(klayer: K210Layer):
     return klayer
