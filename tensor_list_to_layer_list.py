@@ -180,6 +180,7 @@ class LayerConvolutional(LayerBase):
                 raise ValueError('can not find moving_variance values, use is_training=False in {} may help.'.format(batch_norm.name))
 
 
+
 class LayerDepthwiseConvolutional(LayerBase):
     def __init__(self, sess, dataset, info):
         super().__init__()
@@ -266,7 +267,6 @@ class LayerDepthwiseConvolutional(LayerBase):
                 assert ('moving_variance/read' in variance_tensor.name)
                 self.batch_normalize_moving_mean = sess.run(mean_tensor, dataset)
                 self.batch_normalize_moving_variance = sess.run(variance_tensor, dataset)
-
 
 class LayerPool(LayerBase):
     def __init__(self, sess, info):
