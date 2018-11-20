@@ -55,6 +55,16 @@ def load_graph(pb_file_path, tensor_output_name, tensor_input_name):
 
     return None
 
+def overwride_is_training(dataset):
+    with tf.Session() as sess:
+        try:
+            is_training = sess.graph.get_operation_by_name('is_training')
+            if is_training is not None:
+                dataset['is_training:0'] = False
+        except:
+            pass
+
+    return dataset
 
 def box_image(im_path, new_w, new_h):
     from PIL import Image
@@ -172,11 +182,13 @@ def main():
     else:
         dataset_file_list = (dataset_pic_path,)
 
-    dataset = np.array([box_image(path, image_w, image_h)[0].tolist() for path in dataset_file_list])
+    dataset_val= np.array([box_image(path, image_w, image_h)[0].tolist() for path in dataset_file_list])
+    dataset = { dataset_input_name: dataset_val }
+    dataset = overwride_is_training(dataset)
 
     code = convert(
         tensor_output, tensor_input,
-        {dataset_input_name: dataset, 'phase_train:0':False},
+        dataset,
         eight_bit_mode=eight_bit_mode,
         input_min=input_min,
         input_max=input_max,

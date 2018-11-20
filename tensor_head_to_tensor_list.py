@@ -94,6 +94,9 @@ class PbConverter:
         elif self.ty_match(['Maximum', ('Mul', 1), 'FusedBatchNorm', 'Conv2D']):
             self.dst.append(['convolutional', *self.pop_src(0, 1, 0, 0)])
             return True
+        elif self.ty_match(['Maximum', ('Mul', 1), ('Merge', 0), 'FusedBatchNorm', 'Switch', 'Conv2D']):
+            self.dst.append(['convolutional', *self.pop_src(0, 1, 0, 0, 0, 0)])
+            return True
         elif self.ty_match(['Relu6', 'BiasAdd', 'Conv2D']):
             self.dst.append(['convolutional', *self.pop_src(0, 0, 0)])
             return True
