@@ -114,7 +114,6 @@ class PbConverter:
             return True
         elif self.ty_match(['FusedBatchNorm', 'act', 'Conv2D']):
             self.dst.append(['convolutional', *self.pop_src(0, 0, 0)])
-            return True
         elif self.ty_match(['Maximum', ('Mul', 1), 'FusedBatchNorm', 'BiasAdd', 'Conv2D']):
             self.dst.append(['convolutional', *self.pop_src(0, 1, 0, 0, 0)])
             return True
