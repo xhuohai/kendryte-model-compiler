@@ -16,6 +16,7 @@
 
 class RangeFromBatchMinMax:
     def __call__(self, sess, tensor, dataset):
+        print(tensor.name)
         batch = sess.run(tensor, dataset)
         minv = min(batch.flatten())
         maxv = max(batch.flatten())

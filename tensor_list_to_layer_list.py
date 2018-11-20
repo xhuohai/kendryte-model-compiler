@@ -85,6 +85,9 @@ class LayerConvolutional(LayerBase):
         elif self.type_match(info, ['Maximum', 'Mul', 'FusedBatchNorm', 'Conv2D']):
             leaky_reul_max, leaky_reul_mul, batch_norm, conv2d = info
             activation = ['leaky', leaky_reul_max, leaky_reul_mul]
+        elif self.type_match(info, ['Maximum', 'Mul', 'Merge', 'FusedBatchNorm', 'Switch', 'Conv2D']):
+            leaky_reul_max, leaky_reul_mul, merge_1, batch_norm, switch_1, conv2d = info
+            activation = ['leaky', leaky_reul_max, leaky_reul_mul]
         elif self.type_match(info, ['Maximum', 'Mul', 'Add', 'Mul', 'Conv2D']):
             leaky_reul_max, leaky_reul_mul, bn_add, bn_mul, conv2d = info
             bn_div, bn_sub = 1, 0
@@ -137,8 +140,10 @@ class LayerConvolutional(LayerBase):
             self.bias = sess.run(bias_add.op.inputs[1], dataset)
 
         if isinstance(batch_norm, list):
-            self.batch_normalize_moving_mean = sess.run(bn_sub.op.inputs[1], dataset) if isinstance(bn_sub, tf.Tensor) else bn_sub
-            self.batch_normalize_moving_variance = sess.run(bn_div.op.inputs[1], dataset) if isinstance(bn_div, tf.Tensor) else bn_div
+            self.batch_normalize_moving_mean = sess.run(bn_sub.op.inputs[1], dataset) if isinstance(bn_sub,
+                                                                                                    tf.Tensor) else bn_sub
+            self.batch_normalize_moving_variance = sess.run(bn_div.op.inputs[1], dataset) if isinstance(bn_div,
+                                                                                                        tf.Tensor) else bn_div
             self.batch_normalize_gamma = sess.run(bn_mul.op.inputs[1], dataset)
             self.batch_normalize_beta = sess.run(bn_add.op.inputs[1], dataset)
         elif batch_norm is not None:
@@ -173,12 +178,15 @@ class LayerConvolutional(LayerBase):
 
             assert (isinstance(self.batch_normalize_moving_mean, np.ndarray))
             if self.batch_normalize_moving_mean.size == 0:
-                raise ValueError('can not find moving_mean values, use is_training=False in {} may help.'.format(batch_norm.name))
+                raise ValueError(
+                    'can not find moving_mean values, use is_training=False in {} may help.'.format(batch_norm.name))
 
             assert (isinstance(self.batch_normalize_moving_variance, np.ndarray))
             if self.batch_normalize_moving_variance.size == 0:
-                raise ValueError('can not find moving_variance values, use is_training=False in {} may help.'.format(batch_norm.name))
+                raise ValueError('can not find moving_variance values, use is_training=False in {} may help.'.format(
+                    batch_norm.name))
 
+            assert(batch_norm.op.get_attr('is_training') == False)
 
 
 class LayerDepthwiseConvolutional(LayerBase):
@@ -267,6 +275,7 @@ class LayerDepthwiseConvolutional(LayerBase):
                 assert ('moving_variance/read' in variance_tensor.name)
                 self.batch_normalize_moving_mean = sess.run(mean_tensor, dataset)
                 self.batch_normalize_moving_variance = sess.run(variance_tensor, dataset)
+
 
 class LayerPool(LayerBase):
     def __init__(self, sess, info):
