@@ -140,8 +140,10 @@ class LayerConvolutional(LayerBase):
             self.bias = sess.run(bias_add.op.inputs[1], dataset)
 
         if isinstance(batch_norm, list):
-            self.batch_normalize_moving_mean = sess.run(bn_sub.op.inputs[1], dataset) if isinstance(bn_sub, tf.Tensor) else bn_sub
-            self.batch_normalize_moving_variance = sess.run(bn_div.op.inputs[1], dataset) if isinstance(bn_div, tf.Tensor) else bn_div
+            self.batch_normalize_moving_mean = sess.run(bn_sub.op.inputs[1], dataset) if isinstance(bn_sub,
+                                                                                                    tf.Tensor) else bn_sub
+            self.batch_normalize_moving_variance = sess.run(bn_div.op.inputs[1], dataset) if isinstance(bn_div,
+                                                                                                        tf.Tensor) else bn_div
             self.batch_normalize_gamma = sess.run(bn_mul.op.inputs[1], dataset)
             self.batch_normalize_beta = sess.run(bn_add.op.inputs[1], dataset)
         elif batch_norm is not None:
@@ -176,11 +178,13 @@ class LayerConvolutional(LayerBase):
 
             assert (isinstance(self.batch_normalize_moving_mean, np.ndarray))
             if self.batch_normalize_moving_mean.size == 0:
-                raise ValueError('can not find moving_mean values, use is_training=False in {} may help.'.format(batch_norm.name))
+                raise ValueError(
+                    'can not find moving_mean values, use is_training=False in {} may help.'.format(batch_norm.name))
 
             assert (isinstance(self.batch_normalize_moving_variance, np.ndarray))
             if self.batch_normalize_moving_variance.size == 0:
-                raise ValueError('can not find moving_variance values, use is_training=False in {} may help.'.format(batch_norm.name))
+                raise ValueError('can not find moving_variance values, use is_training=False in {} may help.'.format(
+                    batch_norm.name))
 
 
 class LayerDepthwiseConvolutional(LayerBase):
