@@ -186,6 +186,8 @@ class LayerConvolutional(LayerBase):
                 raise ValueError('can not find moving_variance values, use is_training=False in {} may help.'.format(
                     batch_norm.name))
 
+            assert(batch_norm.op.get_attr('is_training') == False)
+
 
 class LayerDepthwiseConvolutional(LayerBase):
     def __init__(self, sess, dataset, info):

@@ -20,6 +20,15 @@ class PbConverter:
         self.output_tensor = output_tensor
         self.input_tensor = input_tensor
         self.dst = []
+        self.activations = [
+            'elu',
+            'leaky_relu',
+            'relu',
+            'relu6',
+            'selu',
+            'softsign',
+            'softmax'
+        ]
 
     def ty_match(self, path):
         if self.output_tensor is None:
@@ -34,7 +43,10 @@ class PbConverter:
             else:
                 ty, next_input = item
 
-            if p.op.type != ty:
+            if ty == 'act':
+                if not any(p.op.type.lower() == i for i in self.activations):
+                    return False
+            elif p.op.type != ty:
                 return False
             if next_input is not None:
                 p = p.op.inputs[next_input]
@@ -67,7 +79,7 @@ class PbConverter:
         elif self.ty_match(['Add', 'Conv2D']):
             self.dst.append(['convolutional', *self.pop_src(0, 0)])
             return True
-        elif self.ty_match(['Relu', 'BiasAdd', 'Conv2D']):
+        elif self.ty_match(['act', 'BiasAdd', 'Conv2D']):
             self.dst.append(['convolutional', *self.pop_src(0, 0, 0)])
             return True
         elif self.ty_match(['Relu', 'FusedBatchNorm', 'BiasAdd', 'Conv2D']):
@@ -88,6 +100,21 @@ class PbConverter:
         elif self.ty_match(['Maximum', ('Mul', 1), 'Add', 'Mul', 'Conv2D']):
             self.dst.append(['convolutional', *self.pop_src(0, 1, 0, 0, 0)])
             return True
+        elif self.ty_match(['act', 'BiasAdd', 'Conv2D']):
+            self.dst.append(['convolutional', *self.pop_src(0, 0, 0)])
+            return True
+        elif self.ty_match(['act', 'FusedBatchNorm', 'BiasAdd', 'Conv2D']):
+            self.dst.append(['convolutional', *self.pop_src(0, 0, 0, 0)])
+            return True
+        elif self.ty_match(['act', 'FusedBatchNorm', 'Conv2D']):
+            self.dst.append(['convolutional', *self.pop_src(0, 0, 0)])
+            return True
+        elif self.ty_match(['FusedBatchNorm', 'act', 'BiasAdd', 'Conv2D']):
+            self.dst.append(['convolutional', *self.pop_src(0, 0, 0, 0)])
+            return True
+        elif self.ty_match(['FusedBatchNorm', 'act', 'Conv2D']):
+            self.dst.append(['convolutional', *self.pop_src(0, 0, 0)])
+            return True
         elif self.ty_match(['Maximum', ('Mul', 1), 'FusedBatchNorm', 'BiasAdd', 'Conv2D']):
             self.dst.append(['convolutional', *self.pop_src(0, 1, 0, 0, 0)])
             return True
@@ -100,10 +127,10 @@ class PbConverter:
         elif self.ty_match(['Relu6', 'BiasAdd', 'Conv2D']):
             self.dst.append(['convolutional', *self.pop_src(0, 0, 0)])
             return True
-        elif self.ty_match(['Relu6', 'FusedBatchNorm', 'BiasAdd', 'Conv2D']):
+        elif self.ty_match(['act', 'FusedBatchNorm', 'BiasAdd', 'Conv2D']):
             self.dst.append(['convolutional', *self.pop_src(0, 0, 0, 0)])
             return True
-        elif self.ty_match(['Relu6', 'FusedBatchNorm', 'Conv2D']):
+        elif self.ty_match(['act', 'FusedBatchNorm', 'Conv2D']):
             self.dst.append(['convolutional', *self.pop_src(0, 0, 0)])
             return True
         else:
@@ -120,19 +147,19 @@ class PbConverter:
             return False
 
     def try_depthwise_convolutional(self):
-        if self.ty_match(['Relu', 'FusedBatchNorm', 'BiasAdd', 'DepthwiseConv2dNative']):
+        if self.ty_match(['act', 'FusedBatchNorm', 'BiasAdd', 'DepthwiseConv2dNative']):
             self.dst.append(['depthwise_convolutional', *self.pop_src(0, 0, 0, 0)])
             return True
-        elif self.ty_match(['Relu', 'FusedBatchNorm', 'DepthwiseConv2dNative']):
+        elif self.ty_match(['act', 'FusedBatchNorm', 'DepthwiseConv2dNative']):
             self.dst.append(['depthwise_convolutional', *self.pop_src(0, 0, 0)])
             return True
-        elif self.ty_match(['Relu', 'BiasAdd', 'DepthwiseConv2dNative']):
+        elif self.ty_match(['act', 'BiasAdd', 'DepthwiseConv2dNative']):
             self.dst.append(['depthwise_convolutional', *self.pop_src(0, 0, 0)])
             return True
-        elif self.ty_match(['Relu6', 'FusedBatchNorm', 'BiasAdd', 'DepthwiseConv2dNative']):
+        elif self.ty_match(['act', 'FusedBatchNorm', 'BiasAdd', 'DepthwiseConv2dNative']):
             self.dst.append(['depthwise_convolutional', *self.pop_src(0, 0, 0, 0)])
             return True
-        elif self.ty_match(['Relu6', 'FusedBatchNorm', 'DepthwiseConv2dNative']):
+        elif self.ty_match(['act', 'FusedBatchNorm', 'DepthwiseConv2dNative']):
             self.dst.append(['depthwise_convolutional', *self.pop_src(0, 0, 0)])
             return True
         elif self.ty_match(['Maximum', ('Mul', 1), 'Add', 'Mul', 'RealDiv', 'Sub', 'DepthwiseConv2dNative']):

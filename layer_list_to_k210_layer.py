@@ -451,7 +451,7 @@ def make_k210_layer(sess, dataset, buffer, idx, last_min, last_max, eight_bit_mo
 def make_id_layer(base_tensor, min_v, max_v, eight_bit_mode, range_from_batch):
     o_ch = base_tensor.shape[1]
     cur_k210 = K210Layer(eight_bit_mode)
-    cur_k210.conv = K210Conv(conv_layer, sess, dataset, idx, eight_bit_mode, last_min, last_max, range_from_batch)
+    # cur_k210.conv = K210Conv(conv_layer, sess, dataset, idx, eight_bit_mode, last_min, last_max, range_from_batch)
     cur_k210.bn = K210BN(0, 1, np.ones(o_ch), np.zeros(o_ch), eight_bit_mode)
     cur_k210.act = K210Act(base_tensor, min_v, max_v, 'linear', eight_bit_mode=eight_bit_mode)
     cur_k210.pool = None

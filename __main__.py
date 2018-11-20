@@ -39,7 +39,7 @@ def load_graph(pb_file_path, tensor_output_name, tensor_input_name):
 
     if pb_file_path.endswith('pb'):
         with tf.Session() as persisted_sess:
-            with gfile.FastGFile(pb_file_path, 'rb') as f:
+            with gfile.GFile(pb_file_path, 'rb') as f:
                 graph_def = tf.GraphDef()
                 graph_def.ParseFromString(f.read())
                 persisted_sess.graph.as_default()
@@ -55,15 +55,20 @@ def load_graph(pb_file_path, tensor_output_name, tensor_input_name):
 
     return None
 
-def overwride_is_training(dataset):
+def overwride_is_training_name(dataset, name):
     with tf.Session() as sess:
         try:
-            is_training = sess.graph.get_operation_by_name('is_training')
+            is_training = sess.graph.get_operation_by_name(name)
             if is_training is not None:
-                dataset['is_training:0'] = False
+                dataset[name+':0'] = False
         except:
             pass
 
+    return dataset
+
+def overwride_is_training(dataset):
+    dataset = overwride_is_training_name(dataset, 'is_training')
+    dataset = overwride_is_training_name(dataset, 'phase_train')
     return dataset
 
 def box_image(im_path, new_w, new_h):
