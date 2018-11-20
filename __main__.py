@@ -82,13 +82,13 @@ def box_image(im_path, new_w, new_h):
     return box_im, resized
 
 
-def convert(tensor_output, tensor_input, dataset_pack, eight_bit_mode=False, input_min=0, input_max=1, prefix=''):
+def convert(tensor_output, tensor_input, dataset, eight_bit_mode=False, input_min=0, input_max=1, prefix=''):
     with tf.Session() as sess:
         converter = tensor_head_to_tensor_list.PbConverter(tensor_output, tensor_input)
         converter.convert()
-        layers = tensor_list_to_layer_list.convert_to_layers(sess, converter.dst)
+        layers = tensor_list_to_layer_list.convert_to_layers(sess, dataset, converter.dst)
         k210_layers = layer_list_to_k210_layer.gen_k210_layers(
-            layers, sess, dataset_pack,
+            layers, sess, dataset,
             range_from_batch=range_from_batch.RangeFromBatchMinMax(),
             eight_bit_mode=eight_bit_mode,
             input_min=input_min,
@@ -176,7 +176,7 @@ def main():
 
     code = convert(
         tensor_output, tensor_input,
-        {dataset_input_name: dataset},
+        {dataset_input_name: dataset, 'phase_train:0':False},
         eight_bit_mode=eight_bit_mode,
         input_min=input_min,
         input_max=input_max,

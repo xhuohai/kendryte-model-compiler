@@ -51,7 +51,7 @@ class LayerNet(LayerBase):
 
 
 class LayerConvolutional(LayerBase):
-    def __init__(self, sess, info):
+    def __init__(self, sess, dataset, info):
         super().__init__()
         self.name = 'convolutional'
         self.config = {}
@@ -69,6 +69,8 @@ class LayerConvolutional(LayerBase):
             bias_add, conv2d = info
         elif self.type_match(info, ['Relu', 'BiasAdd', 'Conv2D']):
             activation, bias_add, conv2d = info
+        elif self.type_match(info, ['Relu', 'FusedBatchNorm', 'BiasAdd', 'Conv2D']):
+            activation, batch_norm, bias_add, conv2d = info
         elif self.type_match(info, ['LeakyRelu', 'BiasAdd', 'Conv2D']):
             activation, bias_add, conv2d = info
         elif self.type_match(info, ['Maximum', 'Mul', 'BiasAdd', 'Conv2D']):
@@ -77,20 +79,23 @@ class LayerConvolutional(LayerBase):
         elif self.type_match(info, ['Maximum', 'Mul', 'Add', 'Conv2D']):
             leaky_reul_max, leaky_reul_mul, bias_add, conv2d = info
             activation = ['leaky', leaky_reul_max, leaky_reul_mul]
-        elif self.type_match(info, ['Relu6', 'BiasAdd', 'Conv2D']):
-            activation, bias_add, conv2d = info
-        elif self.type_match(info, ['Relu', 'FusedBatchNorm', 'BiasAdd', 'Conv2D']):
-            activation, batch_norm, bias_add, conv2d = info
         elif self.type_match(info, ['Maximum', 'Mul', 'FusedBatchNorm', 'BiasAdd', 'Conv2D']):
             leaky_reul_max, leaky_reul_mul, batch_norm, bias_add, conv2d = info
             activation = ['leaky', leaky_reul_max, leaky_reul_mul]
         elif self.type_match(info, ['Maximum', 'Mul', 'FusedBatchNorm', 'Conv2D']):
             leaky_reul_max, leaky_reul_mul, batch_norm, conv2d = info
             activation = ['leaky', leaky_reul_max, leaky_reul_mul]
+        elif self.type_match(info, ['Maximum', 'Mul', 'Add', 'Mul', 'Conv2D']):
+            leaky_reul_max, leaky_reul_mul, bn_add, bn_mul, conv2d = info
+            bn_div, bn_sub = 1, 0
+            activation = ['leaky', leaky_reul_max, leaky_reul_mul]
+            batch_norm = [bn_add, bn_mul]
         elif self.type_match(info, ['Maximum', 'Mul', 'Add', 'Mul', 'RealDiv', 'Sub', 'Conv2D']):
             leaky_reul_max, leaky_reul_mul, bn_add, bn_mul, bn_div, bn_sub, conv2d = info
             activation = ['leaky', leaky_reul_max, leaky_reul_mul]
             batch_norm = [bn_add, bn_mul, bn_div, bn_sub]
+        elif self.type_match(info, ['Relu6', 'BiasAdd', 'Conv2D']):
+            activation, bias_add, conv2d = info
         elif self.type_match(info, ['Relu6', 'FusedBatchNorm', 'BiasAdd', 'Conv2D']):
             activation, batch_norm, bias_add, conv2d = info
         elif self.type_match(info, ['Relu6', 'FusedBatchNorm', 'Conv2D']):
@@ -127,15 +132,15 @@ class LayerConvolutional(LayerBase):
         else:
             self.config['activation'] = 'linear'
 
-        self.weights = sess.run(conv2d.op.inputs[1])
+        self.weights = sess.run(conv2d.op.inputs[1], dataset)
         if bias_add is not None:
-            self.bias = sess.run(bias_add.op.inputs[1])
+            self.bias = sess.run(bias_add.op.inputs[1], dataset)
 
         if isinstance(batch_norm, list):
-            self.batch_normalize_moving_mean = sess.run(bn_sub.op.inputs[1])
-            self.batch_normalize_moving_variance = sess.run(bn_div.op.inputs[1])
-            self.batch_normalize_gamma = sess.run(bn_mul.op.inputs[1])
-            self.batch_normalize_beta = sess.run(bn_add.op.inputs[1])
+            self.batch_normalize_moving_mean = sess.run(bn_sub.op.inputs[1], dataset) if isinstance(bn_sub, tf.Tensor) else bn_sub
+            self.batch_normalize_moving_variance = sess.run(bn_div.op.inputs[1], dataset) if isinstance(bn_div, tf.Tensor) else bn_div
+            self.batch_normalize_gamma = sess.run(bn_mul.op.inputs[1], dataset)
+            self.batch_normalize_beta = sess.run(bn_add.op.inputs[1], dataset)
         elif batch_norm is not None:
             assert (isinstance(batch_norm, tf.Tensor))
             if 'gamma/read' not in batch_norm.op.inputs[1].name:
@@ -143,15 +148,15 @@ class LayerConvolutional(LayerBase):
             if 'beta/read' not in batch_norm.op.inputs[2].name:
                 print('[warning] beta/read should in name:', batch_norm.op.inputs[2].name)
 
-            self.batch_normalize_gamma = sess.run(batch_norm.op.inputs[1])
-            self.batch_normalize_beta = sess.run(batch_norm.op.inputs[2])
+            self.batch_normalize_gamma = sess.run(batch_norm.op.inputs[1], dataset)
+            self.batch_normalize_beta = sess.run(batch_norm.op.inputs[2], dataset)
             if len(batch_norm.op.inputs) == 5:
                 if 'moving_mean/read' not in batch_norm.op.inputs[3].name:
                     print('[warning] moving_mean/read should in name:', batch_norm.op.inputs[3].name)
                 if 'moving_variance/read' not in batch_norm.op.inputs[4].name:
                     print('[warning] moving_variance/read should in name:', batch_norm.op.inputs[4].name)
-                self.batch_normalize_moving_mean = sess.run(batch_norm.op.inputs[3])
-                self.batch_normalize_moving_variance = sess.run(batch_norm.op.inputs[4])
+                self.batch_normalize_moving_mean = sess.run(batch_norm.op.inputs[3], dataset)
+                self.batch_normalize_moving_variance = sess.run(batch_norm.op.inputs[4], dataset)
             else:
                 batch_norm_1 = batch_norm.op.outputs[1]
                 batch_norm_2 = batch_norm.op.outputs[2]
@@ -163,20 +168,21 @@ class LayerConvolutional(LayerBase):
                 variance_tensor = batch_normal_outputs[1].inputs[0]
                 assert ('moving_mean/read' in mean_tensor.name)
                 assert ('moving_variance/read' in variance_tensor.name)
-                self.batch_normalize_moving_mean = sess.run(mean_tensor)
-                self.batch_normalize_moving_variance = sess.run(variance_tensor)
+                self.batch_normalize_moving_mean = sess.run(mean_tensor, dataset)
+                self.batch_normalize_moving_variance = sess.run(variance_tensor, dataset)
 
             assert (isinstance(self.batch_normalize_moving_mean, np.ndarray))
             if self.batch_normalize_moving_mean.size == 0:
-                self.batch_normalize_moving_mean = 0
+                raise ValueError('can not find moving_mean values, use is_training=False in {} may help.'.format(batch_norm.name))
 
             assert (isinstance(self.batch_normalize_moving_variance, np.ndarray))
             if self.batch_normalize_moving_variance.size == 0:
-                self.batch_normalize_moving_variance = 1
+                raise ValueError('can not find moving_variance values, use is_training=False in {} may help.'.format(batch_norm.name))
+
 
 
 class LayerDepthwiseConvolutional(LayerBase):
-    def __init__(self, sess, info):
+    def __init__(self, sess, dataset, info):
         super().__init__()
         self.name = 'depthwise_convolutional'
         self.config = {}
@@ -206,7 +212,7 @@ class LayerDepthwiseConvolutional(LayerBase):
         self.tensor_conv_w = dwconv.op.inputs[1]
         self.tensor_conv_x = dwconv.op.inputs[0]
         self.tensor_conv_y = dwconv
-        self.weights = sess.run(self.tensor_conv_w)
+        self.weights = sess.run(self.tensor_conv_w, dataset)
         # self.tensor_activation = activation or batch_norm or bais_add
         if activation is not None:
             self.tensor_activation = activation
@@ -229,25 +235,25 @@ class LayerDepthwiseConvolutional(LayerBase):
         else:
             self.config['activation'] = 'linear'
 
-        self.bias = sess.run(bias_add.op.inputs[1]) if bias_add is not None else None
+        self.bias = sess.run(bias_add.op.inputs[1], dataset) if bias_add is not None else None
 
         if isinstance(batch_norm, list):
             bn_add, bn_mul, bn_div, bn_sub = batch_norm
-            self.batch_normalize_moving_mean = sess.run(bn_sub.op.inputs[1])
-            self.batch_normalize_moving_variance = sess.run(bn_div.op.inputs[1])
-            self.batch_normalize_gamma = sess.run(bn_mul.op.inputs[1])
-            self.batch_normalize_beta = sess.run(bn_add.op.inputs[1])
+            self.batch_normalize_moving_mean = sess.run(bn_sub.op.inputs[1], dataset)
+            self.batch_normalize_moving_variance = sess.run(bn_div.op.inputs[1], dataset)
+            self.batch_normalize_gamma = sess.run(bn_mul.op.inputs[1], dataset)
+            self.batch_normalize_beta = sess.run(bn_add.op.inputs[1], dataset)
         elif batch_norm is not None:
             assert (isinstance(batch_norm, tf.Tensor))
             assert ('gamma/read' in batch_norm.op.inputs[1].name)
             assert ('beta/read' in batch_norm.op.inputs[2].name)
-            self.batch_normalize_gamma = sess.run(batch_norm.op.inputs[1])
-            self.batch_normalize_beta = sess.run(batch_norm.op.inputs[2])
+            self.batch_normalize_gamma = sess.run(batch_norm.op.inputs[1], dataset)
+            self.batch_normalize_beta = sess.run(batch_norm.op.inputs[2], dataset)
             if len(batch_norm.op.inputs) == 5:
                 assert ('moving_mean/read' in batch_norm.op.inputs[3].name)
                 assert ('moving_variance/read' in batch_norm.op.inputs[4].name)
-                self.batch_normalize_moving_mean = sess.run(batch_norm.op.inputs[3])
-                self.batch_normalize_moving_variance = sess.run(batch_norm.op.inputs[4])
+                self.batch_normalize_moving_mean = sess.run(batch_norm.op.inputs[3], dataset)
+                self.batch_normalize_moving_variance = sess.run(batch_norm.op.inputs[4], dataset)
             else:
                 batch_norm_1 = batch_norm.op.outputs[1]
                 batch_norm_2 = batch_norm.op.outputs[2]
@@ -259,9 +265,8 @@ class LayerDepthwiseConvolutional(LayerBase):
                 variance_tensor = batch_normal_outputs[1].inputs[0]
                 assert ('moving_mean/read' in mean_tensor.name)
                 assert ('moving_variance/read' in variance_tensor.name)
-                self.batch_normalize_moving_mean = sess.run(mean_tensor)
-                self.batch_normalize_moving_variance = sess.run(variance_tensor)
-
+                self.batch_normalize_moving_mean = sess.run(mean_tensor, dataset)
+                self.batch_normalize_moving_variance = sess.run(variance_tensor, dataset)
 
 class LayerPool(LayerBase):
     def __init__(self, sess, info):
@@ -276,21 +281,21 @@ class LayerPool(LayerBase):
         self.config['stride'] = self.tensor_pool.op.get_attr('strides')[1]
 
 
-def convert_layer(sess, info):
+def convert_layer(sess, dataset, info):
     ty = info[0]
     info = info[1:]
     if ty == 'net':
         return LayerNet(sess, info)
     elif ty == 'convolutional':
-        return LayerConvolutional(sess, info)
+        return LayerConvolutional(sess, dataset, info)
     elif ty == 'depthwise_convolutional':
-        return LayerDepthwiseConvolutional(sess, info)
+        return LayerDepthwiseConvolutional(sess, dataset, info)
     elif ty == 'pool':
         return LayerPool(sess, info)
     else:
         print('unknown type:', ty)
 
 
-def convert_to_layers(sess, info_list):
+def convert_to_layers(sess, dataset, info_list):
     info_list.reverse()
-    return [convert_layer(sess, info) for info in info_list]
+    return [convert_layer(sess, dataset, info) for info in info_list]

@@ -82,6 +82,12 @@ class PbConverter:
         elif self.ty_match(['act', 'BiasAdd', 'Conv2D']):
             self.dst.append(['convolutional', *self.pop_src(0, 0, 0)])
             return True
+        elif self.ty_match(['Relu', 'FusedBatchNorm', 'BiasAdd', 'Conv2D']):
+            self.dst.append(['convolutional', *self.pop_src(0, 0, 0, 0)])
+            return True
+        elif self.ty_match(['Relu', 'FusedBatchNorm', 'Conv2D']):
+            self.dst.append(['convolutional', *self.pop_src(0, 0, 0)])
+            return True
         elif self.ty_match(['Maximum', ['Mul', 1], 'BiasAdd', 'Conv2D']):
             self.dst.append(['convolutional', *self.pop_src(0, 1, 0, 0)])
             return True
@@ -102,6 +108,11 @@ class PbConverter:
             return True
         elif self.ty_match(['FusedBatchNorm', 'act', 'Conv2D']):
             self.dst.append(['convolutional', *self.pop_src(0, 0, 0)])
+        elif self.ty_match(['Maximum', ('Mul', 1), 'Add', 'Mul', 'RealDiv', 'Sub', 'Conv2D']):
+            self.dst.append(['convolutional', *self.pop_src(0, 1, 0, 0, 0, 0, 0)])
+            return True
+        elif self.ty_match(['Maximum', ('Mul', 1), 'Add', 'Mul', 'Conv2D']):
+            self.dst.append(['convolutional', *self.pop_src(0, 1, 0, 0, 0)])
             return True
         elif self.ty_match(['Maximum', ('Mul', 1), 'FusedBatchNorm', 'BiasAdd', 'Conv2D']):
             self.dst.append(['convolutional', *self.pop_src(0, 1, 0, 0, 0)])
@@ -109,8 +120,8 @@ class PbConverter:
         elif self.ty_match(['Maximum', ('Mul', 1), 'FusedBatchNorm', 'Conv2D']):
             self.dst.append(['convolutional', *self.pop_src(0, 1, 0, 0)])
             return True
-        elif self.ty_match(['Maximum', ('Mul', 1), 'Add', 'Mul', 'RealDiv', 'Sub', 'Conv2D']):
-            self.dst.append(['convolutional', *self.pop_src(0, 1, 0, 0, 0, 0, 0)])
+        elif self.ty_match(['Relu6', 'BiasAdd', 'Conv2D']):
+            self.dst.append(['convolutional', *self.pop_src(0, 0, 0)])
             return True
         elif self.ty_match(['act', 'FusedBatchNorm', 'BiasAdd', 'Conv2D']):
             self.dst.append(['convolutional', *self.pop_src(0, 0, 0, 0)])
@@ -186,7 +197,7 @@ class PbConverter:
                 return True
 
         if self.output_tensor is not None:
-            print('no converter for', self.output_tensor.op.type, 'name:', self.output_tensor.op.name)
+            raise ValueError('no converter for', self.output_tensor.op.type, 'name:', self.output_tensor.op.name)
         else:
             print('convert done.')
         return False

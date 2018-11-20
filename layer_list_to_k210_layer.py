@@ -67,11 +67,11 @@ class K210Conv:
         self.x_bias = input_min
         assert (self.x_range > 0)
 
-        w_min, w_max = range_from_batch(sess, layer.tensor_conv_w, dataset)
+        w_min, w_max, _ = range_from_batch(sess, layer.tensor_conv_w, dataset)
         self.w_range = w_max - w_min
         self.w_bias = w_min
         assert (self.w_range > 0)
-
+        
         if layer.tensor_conv_x.shape[1:2] != layer.tensor_conv_y.shape[1:2]:
             raise ValueError('conv2d should use padding=SAME')
 
@@ -88,7 +88,7 @@ class K210Conv:
         weight_buffer_size = 2 * 9 * 4096
         weights_ich = int(weights_shape[2])
         weights_och = int(weights_shape[3])
-        weight_data_size =  1 if self.eight_bit_mode else 2
+        weight_data_size = 1 if self.eight_bit_mode else 2
 
         if self.depth_wise_layer:
             o_ch_weights_size = int(weights_shape[0]) * int(weights_shape[1]) * weight_data_size
@@ -115,17 +115,17 @@ class K210Conv:
         if self.eight_bit_mode:
             half_weight_buffer_size = weight_buffer_size / 2
             while True:
-                last_ch_idx = (o_ch_num-1) % o_ch_num_coef
-                last_addr_end = (last_ch_idx+1) * o_ch_weights_size_pad
+                last_ch_idx = (o_ch_num - 1) % o_ch_num_coef
+                last_addr_end = (last_ch_idx + 1) * o_ch_weights_size_pad
                 if last_addr_end < half_weight_buffer_size:
                     break
 
                 o_ch_num_coef = o_ch_num_coef - 1
-                load_time = math.ceil(o_ch_num/o_ch_num_coef)
+                load_time = math.ceil(o_ch_num / o_ch_num_coef)
                 if o_ch_num_coef <= 0:
-                    assert('cannot fix last_addr_end to first half part')
+                    assert ('cannot fix last_addr_end to first half part')
 
-        assert(load_time<=64)
+        assert (load_time <= 64)
 
         o_ch_num_coef = min(o_ch_num_coef, o_ch_num)
         para_size = o_ch_num_coef * o_ch_weights_size
@@ -159,7 +159,7 @@ class K210Conv:
         load_time, para_size, o_ch_num_coef = self.para_mult_loads(weights_shape, output_shape, kernel_size)
 
         x_qmax = 255
-        w_qmax = (1<<(8 * weight_data_size))-1
+        w_qmax = (1 << (8 * weight_data_size)) - 1
         bias_x, scale_x = self.x_bias, self.x_range / x_qmax
         bias_w, scale_w = self.w_bias, self.w_range / w_qmax
 
@@ -172,7 +172,7 @@ class K210Conv:
         pad_value = -bx_div_sx
         swsx = scale_w * scale_x
 
-        weight_q = ((weights-bias_w)/scale_w).transpose([3, 2, 0, 1])
+        weight_q = ((weights - bias_w) / scale_w).transpose([3, 2, 0, 1])
         para_start_addr = [int(round(item)) for item in np.reshape(weight_q, (np.product(weight_q.shape),))]
 
         return {
@@ -307,7 +307,7 @@ class K210Act:
 
     @staticmethod
     def table_to_act(act_table, min_y, max_y, eight_bit_mode):
-        def act_table_aux(x,y,dydx):
+        def act_table_aux(x, y, dydx):
             y_scale = (max_y - min_y) / 255
             y_bias = min_y
             x_fix = x * hotfix_magic_1(eight_bit_mode)
@@ -316,18 +316,17 @@ class K210Act:
 
             yf_q = round(y_fix)
             yf_err = y_fix - yf_q
-            xfy = x_fix - yf_err/dydx_fix
+            xfy = x_fix - yf_err / dydx_fix
             return xfy, yf_q, dydx_fix
 
-        act_table = [(0x800000000, 0, 0)] + [act_table_aux(x,y,dydx) for x, y, dydx in act_table]
+        act_table = [(0x800000000, 0, 0)] + [act_table_aux(x, y, dydx) for x, y, dydx in act_table]
 
         def ret_aux(x, y, dydx):
             dxss, dys = K210Act.find_shift(dydx)
-            assert(dys >= 0)
+            assert (dys >= 0)
             return {'x': int(round(x)), 'y': int(round(y)), 'dxs': dxss, 'dy': int(round(dys))}
 
         return [ret_aux(x, y, dydx) for x, y, dydx in act_table]
-
 
     def to_k210(self):
         act_tab = None
@@ -396,7 +395,6 @@ class K210Layer:
         i_row_wid = int(input_shape[1])
         img_data_size = 1
 
-
         coef_group = 1 if i_row_wid > 32 else (2 if i_row_wid > 16 else 4)
 
         # io
@@ -439,8 +437,9 @@ def make_k210_layer(sess, dataset, buffer, idx, last_min, last_max, eight_bit_mo
             cur_k210.bn = K210BN(0, 1, np.ones(bias_shape), conv_layer.bias, eight_bit_mode)
 
         tensor_act = conv_layer.tensor_activation
-        act_min_y, act_max_y = range_from_batch(sess, tensor_act, dataset)
-        cur_k210.act = K210Act(tensor_act, act_min_y, act_max_y, conv_layer.config['activation'], eight_bit_mode=eight_bit_mode)
+        act_min_y, act_max_y, _ = range_from_batch(sess, tensor_act, dataset)
+        cur_k210.act = K210Act(tensor_act, act_min_y, act_max_y, conv_layer.config['activation'],
+                               eight_bit_mode=eight_bit_mode)
 
     if len(buffer) > 0 and isinstance(buffer[-1], tensor_list_to_layer_list.LayerPool):
         pool_layer = buffer.pop()
@@ -459,10 +458,12 @@ def make_id_layer(base_tensor, min_v, max_v, eight_bit_mode, range_from_batch):
     cur_k210.pool = None
     return cur_k210
 
-def k210_layer_post_fix(klayer : K210Layer):
+def k210_layer_post_fix(klayer: K210Layer):
     return klayer
 
-def gen_k210_layers(layers: [tensor_list_to_layer_list.LayerBase], sess, dataset, range_from_batch, eight_bit_mode = False, input_min=0, input_max=1):
+
+def gen_k210_layers(layers: [tensor_list_to_layer_list.LayerBase], sess, dataset, range_from_batch,
+                    eight_bit_mode=False, input_min=0, input_max=1):
     buffer = list(layers)
     buffer.reverse()
     ret = []
