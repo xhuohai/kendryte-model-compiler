@@ -28,6 +28,7 @@ import tensor_head_to_tensor_list
 import tensor_list_to_layer_list
 import layer_list_to_k210_layer
 import k210_layer_to_c_code
+import k210_layer_to_bin
 
 current_dir = os.path.dirname(os.path.realpath(__file__))
 
@@ -110,8 +111,9 @@ def convert(tensor_output, tensor_input, dataset, eight_bit_mode=False, input_mi
             input_max=input_max
         )
 
-        code = k210_layer_to_c_code.gen_layer_list_code(k210_layers, eight_bit_mode, prefix)
-        return code
+        output_code = k210_layer_to_c_code.gen_layer_list_code(k210_layers, eight_bit_mode, prefix)
+        output_bin = k210_layer_to_bin.gen_layer_bin(k210_layers, eight_bit_mode)
+        return (output_code, output_bin)
 
 
 def main():
@@ -136,6 +138,7 @@ def main():
     parser.add_argument('--image_h', type=int, default=240)
     parser.add_argument('--eight_bit_mode', type=str2bool, nargs='?', const=True, default=False)
     parser.add_argument('--output_path', default='build/gencode_output.c')
+    parser.add_argument('--output_bin_name', default='build/model.bin')
     parser.add_argument('--prefix', default='')
 
     # Deprecated
@@ -160,6 +163,7 @@ def main():
     image_h = args.image_h
     eight_bit_mode = args.eight_bit_mode
     output_path = args.output_path
+    output_bin_name = args.output_bin_name
     prefix = args.prefix
 
     if ':' not in dataset_input_name:
@@ -191,7 +195,7 @@ def main():
     dataset = { dataset_input_name: dataset_val }
     dataset = overwride_is_training(dataset)
 
-    code = convert(
+    (output_code, output_bin) = convert(
         tensor_output, tensor_input,
         dataset,
         eight_bit_mode=eight_bit_mode,
@@ -202,7 +206,13 @@ def main():
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, 'w') as of:
-        of.write(code)
+        of.write(output_code)
+    print('generate c code finish')
+
+    os.makedirs(os.path.dirname(output_bin_name), exist_ok=True)
+    with open(output_bin_name, 'wb') as of:
+        of.write(output_bin)
+    print('generate bin finish')
 
 
 if __name__ == '__main__':
