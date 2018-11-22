@@ -126,7 +126,7 @@ def gen_layer_struct(klayer: layer_list_to_k210_layer.K210Layer, idx: int):
     if klayer.pool:
         tensor_out = klayer.pool.tensor
     else:
-        tensor_out = klayer.act.layer.tensor_activation
+        tensor_out = klayer.act.tensor
 
     output_scale, output_bias = min_max_to_scale_bias(mino, maxo)
     print("[layer {}]".format(idx), tensor_out.op.name, 'scale/bias:', output_scale, output_bias)
@@ -337,9 +337,9 @@ def gen_layer_bin(klayers: [layer_list_to_k210_layer.K210Layer], eight_bit_mode)
         layer_config_part += int(layer.bn_len).to_bytes(4, 'little')
         layer_config_part += int(layer.weights_addr_offset).to_bytes(4, 'little')
         layer_config_part += int(layer.weights_len).to_bytes(4, 'little')
-        param_part += layer.reg_param
-        param_part += layer.act_param
-        param_part += layer.bn_param
-        param_part += layer.weights_param
+        param_part += layer.reg_arg
+        param_part += layer.act_arg
+        param_part += layer.bn_arg
+        param_part += layer.weights_arg
 
     return model_config_part + layer_config_part + param_part
