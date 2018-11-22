@@ -48,7 +48,7 @@ kpu_layer_config_field_offset = {
         'i_row_wid': 0,
         'i_col_high': 10,
         'o_row_wid': 32,
-        'o_col_high': 51
+        'o_col_high': 42
     },
     'kernel_pool_type_cfg': {
         'kernel_type': 0,
