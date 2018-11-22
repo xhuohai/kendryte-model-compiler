@@ -23,10 +23,12 @@ python3 model-compiler --pb_path <pb file path> --tensor_output_name <output ten
 ```
 
 ## Arguments
-###-h
+
+### -h
 show more help
-###--eight_bit_mode
+
+### --eight_bit_mode
 using 8bit mode or 16bit mode
 
-###--tesorboard-mode
+### --tesorboard-mode
 run tensorboard for current `.pb` file
