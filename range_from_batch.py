@@ -13,17 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  '''
+import numpy as np
 
 class RangeFromBatchMinMax:
-    def __call__(self, sess, tensor, dataset):
-        print(tensor.name)
+    def __call__(self, sess, tensor, dataset, is_weights=False):
         batch = sess.run(tensor, dataset)
         minv = min(batch.flatten())
         maxv = max(batch.flatten())
         return minv, maxv, batch
 
 class RangeFromBatchMinMax98:
-    def __call__(self, sess, tensor, dataset):
+    def __call__(self, sess, tensor, dataset, is_weights=False):
         batch = sess.run(tensor, dataset)
         batch_s = sorted(batch.flatten())
         assert(batch.size > 100)
@@ -32,7 +32,7 @@ class RangeFromBatchMinMax98:
         return minv, maxv, batch
 
 class RangeFromBatchMinMax90:
-    def __call__(self, sess, tensor, dataset):
+    def __call__(self, sess, tensor, dataset, is_weights=False):
         batch = sess.run(tensor, dataset)
         batch_s = sorted(batch.flatten())
         assert(batch.size > 100)
@@ -41,10 +41,21 @@ class RangeFromBatchMinMax90:
         return minv, maxv, batch
 
 class RangeFromBatchMinMax80:
-    def __call__(self, sess, tensor, dataset):
+    def __call__(self, sess, tensor, dataset, is_weights=False):
         batch = sess.run(tensor, dataset)
         batch_s = sorted(batch.flatten())
         assert(batch.size > 100)
         minv = batch_s[round(len(batch_s)*0.1)]
         maxv = batch_s[round(len(batch_s)*0.9)]
         return minv, maxv, batch
+
+class RangeFromBatchMeanMinsMaxs:
+    def __call__(self, sess, tensor, dataset, is_weights=False):
+        if is_weights:
+            return RangeFromBatchMinMax()(sess, tensor,dataset,is_weights)
+        else:
+            batch = sess.run(tensor, dataset)
+            n_batch = np.reshape(batch, [batch.shape[0], np.prod(batch.shape[1:])])
+            minv = n_batch.min(axis=1).mean()
+            maxv = n_batch.max(axis=1).mean()
+            return minv, maxv, batch

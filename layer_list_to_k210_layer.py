@@ -422,7 +422,7 @@ def make_k210_layer(sess, dataset, buffer, idx, last_min, last_max, eight_bit_mo
             or isinstance(buffer[-1], tensor_list_to_layer_list.LayerDepthwiseConvolutional):
         conv_layer = buffer.pop()
 
-        wmin, wmax, _ = range_from_batch(sess, conv_layer.tensor_conv_w, dataset)
+        wmin, wmax, _ = range_from_batch(sess, conv_layer.tensor_conv_w, dataset, is_weights=True)
         cur_k210.conv = K210Conv(
             conv_layer.weights, conv_layer.tensor_conv_x.name,
             isinstance(conv_layer, tensor_list_to_layer_list.LayerDepthwiseConvolutional),
