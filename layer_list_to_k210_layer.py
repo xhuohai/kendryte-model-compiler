@@ -197,11 +197,12 @@ class K210Conv:
 
 
 class K210BN:
-    def __init__(self, mean, var, gamma, beta, eight_bit_mode):
+    def __init__(self, mean, var, gamma, beta, epsilon, eight_bit_mode):
         self.mean = mean
         self.var = var
         self.gamma = gamma
         self.beta = beta
+        self.epsilon = epsilon
         self.eight_bit_mode = eight_bit_mode
 
     @staticmethod
@@ -211,8 +212,9 @@ class K210BN:
 
     def to_k210(self, swsx=1):
         __hotfix_magic = hotfix_magic_1(self.eight_bit_mode)
-        scale = swsx * self.gamma / self.var * __hotfix_magic
-        bias = (self.beta - self.gamma * self.mean / self.var) * __hotfix_magic
+        sqrt_var = np.sqrt(self.var + self.epsilon)
+        scale = swsx * self.gamma / sqrt_var * __hotfix_magic
+        bias = (self.beta - self.gamma * self.mean / sqrt_var) * __hotfix_magic
 
         load_para = 1
         bwsx_base_addr = [
@@ -433,11 +435,12 @@ def make_k210_layer(sess, dataset, buffer, idx, last_min, last_max, eight_bit_mo
                 conv_layer.batch_normalize_moving_variance,
                 conv_layer.batch_normalize_gamma,
                 conv_layer.batch_normalize_beta,
+                conv_layer.batch_normalize_epsilon,
                 eight_bit_mode
             )
         else:
             bias_shape = conv_layer.bias.shape
-            cur_k210.bn = K210BN(0, 1, np.ones(bias_shape), conv_layer.bias, eight_bit_mode)
+            cur_k210.bn = K210BN(0, 1, np.ones(bias_shape), conv_layer.bias, 0, eight_bit_mode)
 
         tensor_act = conv_layer.tensor_activation
         act_min_y, act_max_y, _ = range_from_batch(sess, tensor_act, dataset)

@@ -186,6 +186,7 @@ class LayerConvolutional(LayerBase):
                 raise ValueError('can not find moving_variance values, use is_training=False in {} may help.'.format(
                     batch_norm.name))
 
+            self.batch_normalize_epsilon = batch_norm.op.get_attr('epsilon')
             assert(batch_norm.op.get_attr('is_training') == False)
 
 
