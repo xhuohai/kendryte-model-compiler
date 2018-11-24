@@ -52,31 +52,29 @@ def signed_to_hex(value, width):
 
 
 class K210Conv:
-    def __init__(self, layer, sess, dataset, idx, eight_bit_mode, input_min, input_max, range_from_batch):
-        self.input_shape = layer.tensor_conv_x.shape
-        self.weights_shape = layer.tensor_conv_w.shape
-        self.output_shape = layer.tensor_conv_y.shape
-        self.weights = layer.weights
-        self.stride = layer.config['stride']
-        self.depth_wise_layer = isinstance(layer, tensor_list_to_layer_list.LayerDepthwiseConvolutional)
+    def __init__(self, weights, input_tensor_name, depth_wise_layer, eight_bit_mode, xy_shape, xw_minmax):
+        self.weights = weights
+        self.weights_shape = self.weights.shape
+        self.input_shape, self.output_shape = xy_shape
+        xmin, xmax, wmin, wmax = xw_minmax
+        self.stride = 1 # layer.config['stride']
+        self.depth_wise_layer = depth_wise_layer #isinstance(layer, tensor_list_to_layer_list.LayerDepthwiseConvolutional)
         self.eight_bit_mode = eight_bit_mode
 
-        self.x_range = input_max - input_min
-        self.x_bias = input_min
+        self.x_range = xmax - xmin
+        self.x_bias = xmin
         assert (self.x_range > 0)
 
-        w_min, w_max, _ = range_from_batch(sess, layer.tensor_conv_w, dataset)
-        self.w_range = w_max - w_min
-        self.w_bias = w_min
+        self.w_range = wmax - wmin
+        self.w_bias = wmin
         assert (self.w_range > 0)
 
-        if layer.tensor_conv_x.shape[1:2] != layer.tensor_conv_y.shape[1:2]:
-            raise ValueError('conv2d should use padding=SAME')
+        if self.input_shape[1:2] != self.output_shape[1:2]:
+            raise ValueError('conv2d {} should use padding=SAME'.format(input_tensor_name))
 
-        if layer.tensor_conv_x.shape[1] < 4:
-            tensor_name = layer.tensor_conv_x.name
-            tensor_height = layer.tensor_conv_x.shape[1]
-            raise ValueError('feature map required height>4 which {} height is {}'.format(tensor_name, tensor_height))
+        if self.input_shape[1] < 4:
+            tensor_height = self.input_shape[1]
+            raise ValueError('feature map required height>4 which {} height is {}'.format(input_tensor_name, tensor_height))
 
     @staticmethod
     def q(value, scale, bias):
@@ -199,11 +197,12 @@ class K210Conv:
 
 
 class K210BN:
-    def __init__(self, mean, var, gamma, beta, eight_bit_mode):
+    def __init__(self, mean, var, gamma, beta, epsilon, eight_bit_mode):
         self.mean = mean
         self.var = var
         self.gamma = gamma
         self.beta = beta
+        self.epsilon = epsilon
         self.eight_bit_mode = eight_bit_mode
 
     @staticmethod
@@ -213,8 +212,9 @@ class K210BN:
 
     def to_k210(self, swsx=1):
         __hotfix_magic = hotfix_magic_1(self.eight_bit_mode)
-        scale = swsx * self.gamma / self.var * __hotfix_magic
-        bias = (self.beta - self.gamma * self.mean / self.var) * __hotfix_magic
+        sqrt_var = np.sqrt(self.var + self.epsilon)
+        scale = swsx * self.gamma / sqrt_var * __hotfix_magic
+        bias = (self.beta - self.gamma * self.mean / sqrt_var) * __hotfix_magic
 
         load_para = 1
         bwsx_base_addr = [
@@ -421,18 +421,26 @@ def make_k210_layer(sess, dataset, buffer, idx, last_min, last_max, eight_bit_mo
     if isinstance(buffer[-1], tensor_list_to_layer_list.LayerConvolutional) \
             or isinstance(buffer[-1], tensor_list_to_layer_list.LayerDepthwiseConvolutional):
         conv_layer = buffer.pop()
-        cur_k210.conv = K210Conv(conv_layer, sess, dataset, idx, eight_bit_mode, last_min, last_max, range_from_batch)
+
+        wmin, wmax, _ = range_from_batch(sess, conv_layer.tensor_conv_w, dataset, is_weights=True)
+        cur_k210.conv = K210Conv(
+            conv_layer.weights, conv_layer.tensor_conv_x.name,
+            isinstance(conv_layer, tensor_list_to_layer_list.LayerDepthwiseConvolutional),
+            eight_bit_mode, [conv_layer.tensor_conv_x.shape, conv_layer.tensor_conv_y.shape],
+            [last_min, last_max, wmin, wmax]
+        )
         if int(conv_layer.config['batch_normalize']) == 1:
             cur_k210.bn = K210BN(
                 conv_layer.batch_normalize_moving_mean,
                 conv_layer.batch_normalize_moving_variance,
                 conv_layer.batch_normalize_gamma,
                 conv_layer.batch_normalize_beta,
+                conv_layer.batch_normalize_epsilon,
                 eight_bit_mode
             )
         else:
             bias_shape = conv_layer.bias.shape
-            cur_k210.bn = K210BN(0, 1, np.ones(bias_shape), conv_layer.bias, eight_bit_mode)
+            cur_k210.bn = K210BN(0, 1, np.ones(bias_shape), conv_layer.bias, 0, eight_bit_mode)
 
         tensor_act = conv_layer.tensor_activation
         act_min_y, act_max_y, _ = range_from_batch(sess, tensor_act, dataset)
@@ -450,8 +458,15 @@ def make_k210_layer(sess, dataset, buffer, idx, last_min, last_max, eight_bit_mo
 
 def make_id_layer(base_tensor, min_v, max_v, eight_bit_mode, range_from_batch):
     o_ch = base_tensor.shape[1]
+    input_tensor_shape = base_tensor.shape
     cur_k210 = K210Layer(eight_bit_mode)
-    # cur_k210.conv = K210Conv(conv_layer, sess, dataset, idx, eight_bit_mode, last_min, last_max, range_from_batch)
+    cur_k210.conv = K210Conv(
+        weights=np.array([[[[1]]]]),
+        input_tensor_name='<id_layer>',
+        depth_wise_layer=True,
+        eight_bit_mode=eight_bit_mode, xy_shape=[input_tensor_shape, input_tensor_shape],
+        xw_minmax=[min_v, max_v, min_v, max_v]
+    )
     cur_k210.bn = K210BN(0, 1, np.ones(o_ch), np.zeros(o_ch), eight_bit_mode)
     cur_k210.act = K210Act(base_tensor, min_v, max_v, 'linear', eight_bit_mode=eight_bit_mode)
     cur_k210.pool = None
@@ -479,6 +494,7 @@ def gen_k210_layers(layers: [tensor_list_to_layer_list.LayerBase], sess, dataset
         else:
             last_min = input_min
             last_max = input_max
+
 
         cur_k210 = make_k210_layer(
             sess=sess, dataset=dataset,
