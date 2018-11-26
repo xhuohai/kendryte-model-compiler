@@ -58,7 +58,7 @@ def convert(h5_in):
     pb_path = '/'.join(pb_path_list)
 
     K.set_learning_phase(0)
-    net_model = keras.models.load_model(h5_in)
+    net_model = keras.models.load_model(h5_in, custom_objects={'tf': tf})
 
     frozen_graph = freeze_session(K.get_session(), output_names=[net_model.output.op.name])
     graph_io.write_graph(frozen_graph, pb_path, pb_name, as_text=False)
