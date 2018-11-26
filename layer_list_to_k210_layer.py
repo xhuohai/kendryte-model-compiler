@@ -347,27 +347,31 @@ class K210Act:
 
 
 class K210Pool:
-    def __init__(self, layer, size, stride, sess=None, dataset=None):
+    def __init__(self, pool_type, size, stride):
         self.size = size
         self.stride = stride
-        self.tensor = layer.tensor_pool
-        if self.size == 2 and self.tensor.op.inputs[0].shape[3] % 2 != 0:
-            if self.tensor.op.get_attr('padding') == b'SAME':
-                raise ValueError("at {} unsupport padding mode SAME of pooling with size == 2".format(self.tensor.name))
+        self.pool_type = pool_type
 
     def to_k210(self):
-        if self.tensor.op.type == 'MaxPool':
+        if self.pool_type == 'MaxPool':
             return {'pool_type': {
                 (2, 2): 1,
-                (4, 2): 3,
+                (4, 4): 3,
                 (2, 1): 9
             }[(self.size, self.stride)]}
-        elif self.tensor.op.type == 'AvgPool':
+        elif self.pool_type == 'AvgPool':
             return {'pool_type': {
                 (2, 2): 2,
-                (4, 2): 4,
+                (4, 4): 4,
                 (2, 1): 8
             }[(self.size, self.stride)]}
+        elif self.pool_type == 'hotfix_leftPool':
+            return {'pool_type': {
+                (2, 2): 5,
+                (4, 4): 7,
+            }[(self.size, self.stride)]}
+        elif self.pool_type == 'hotfix_rightPool':
+            return {'pool_type': 6}
         else:
             return None
 
@@ -388,7 +392,9 @@ class K210Layer:
 
     def to_k210(self, idx):
         if self.pool is not None:
-            output_shape = self.pool.tensor.shape
+            output_shape = list(self.conv.output_shape)
+            output_shape[1] = int(math.floor(self.conv.output_shape[1] / self.pool.stride))
+            output_shape[2] = int(math.floor(self.conv.output_shape[2] / self.pool.stride))
         else:
             output_shape = self.conv.output_shape
 
@@ -457,19 +463,30 @@ def make_k210_layer(sess, dataset, buffer, last_min, last_max, eight_bit_mode, r
     if len(buffer) > 0 and isinstance(buffer[-1], tensor_list_to_layer_list.LayerPool):
         pool_layer = buffer.pop()
         assert (isinstance(pool_layer, tensor_list_to_layer_list.LayerPool))
+        pool_size = pool_layer.config['size']
+        pool_stride = pool_layer.config['stride']
+        pool_type = pool_layer.tensor_pool.tensor.op.name
         # hotfix
-        if pool_layer.config['stride'] == 1 and conv_layer.config['stride'] == 2:
-            pool_layer.config['stride'] = 2
+        if pool_stride == 1 and conv_layer.config['stride'] == 2:
+            pool_size = 2
 
-        cur_k210.pool = K210Pool(pool_layer, pool_layer.config['size'], pool_layer.config['stride'],
-                                 sess, dataset)
+        if pool_size== 2 and pool_layer.tensor_pool.tensor.op.inputs[0].shape[3] % 2 != 0:
+            if pool_layer.tensor_pool.tensor.op.get_attr('padding') == b'SAME':
+                raise ValueError("at {} unsupport padding mode SAME of pooling with size == 2".format(pool_layer.tensor_pool.tensor.name))
+        cur_k210.pool = K210Pool(pool_type, pool_size, pool_stride)
+    # hotfix
+    elif conv_layer.config['stride'] == 2:
+        pool_size = 2
+        pool_stride =  2
+        pool_type = 'hotfix_leftPool'
+        cur_k210.pool = K210Pool(pool_type, pool_size, pool_stride)
 
     return cur_k210
 
 
 def make_id_layer(base_tensor, min_v, max_v, eight_bit_mode, range_from_batch):
     o_ch = base_tensor.shape[1]
-    input_tensor_shape = base_tensor.shape
+    input_tensor_shape = sess.run(base_tensor, dataset).shape
     cur_k210 = K210Layer(eight_bit_mode)
     cur_k210.conv = K210Conv(
         weights=np.array([[[[1]]]]),
