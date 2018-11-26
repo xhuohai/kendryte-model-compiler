@@ -70,7 +70,11 @@ class K210Conv:
         assert (self.w_range > 0)
 
         if self.input_shape[1:2] != self.output_shape[1:2]:
-            raise ValueError('conv2d {} should use padding=SAME'.format(input_tensor_name))
+            # raise ValueError('conv2d {} should use padding=SAME'.format(input_tensor_name))
+            print('[error]', 'conv2d {} should use padding=SAME'.format(input_tensor_name))
+            self.input_shape = list(self.input_shape)
+            self.input_shape[1] = self.output_shape[1]
+            self.input_shape[2] = self.output_shape[2]
 
         if self.input_shape[1] < 4:
             tensor_height = self.input_shape[1]
@@ -415,18 +419,21 @@ class K210Layer:
         return locals()
 
 
-def make_k210_layer(sess, dataset, buffer, idx, last_min, last_max, eight_bit_mode, range_from_batch):
+def make_k210_layer(sess, dataset, buffer, last_min, last_max, eight_bit_mode, range_from_batch):
     cur_k210 = K210Layer(eight_bit_mode)
+    conv_layer = None
 
     if isinstance(buffer[-1], tensor_list_to_layer_list.LayerConvolutional) \
             or isinstance(buffer[-1], tensor_list_to_layer_list.LayerDepthwiseConvolutional):
         conv_layer = buffer.pop()
 
+        conv_input_shape = sess.run(conv_layer.tensor_conv_x, dataset).shape
+        conv_output_shape = sess.run(conv_layer.tensor_conv_y, dataset).shape
         wmin, wmax, _ = range_from_batch(sess, conv_layer.tensor_conv_w, dataset, is_weights=True)
         cur_k210.conv = K210Conv(
             conv_layer.weights, conv_layer.tensor_conv_x.name,
             isinstance(conv_layer, tensor_list_to_layer_list.LayerDepthwiseConvolutional),
-            eight_bit_mode, [conv_layer.tensor_conv_x.shape, conv_layer.tensor_conv_y.shape],
+            eight_bit_mode, [conv_input_shape, conv_output_shape],
             [last_min, last_max, wmin, wmax]
         )
         if int(conv_layer.config['batch_normalize']) == 1:
@@ -450,6 +457,10 @@ def make_k210_layer(sess, dataset, buffer, idx, last_min, last_max, eight_bit_mo
     if len(buffer) > 0 and isinstance(buffer[-1], tensor_list_to_layer_list.LayerPool):
         pool_layer = buffer.pop()
         assert (isinstance(pool_layer, tensor_list_to_layer_list.LayerPool))
+        # hotfix
+        if pool_layer.config['stride'] == 1 and conv_layer.config['stride'] == 2:
+            pool_layer.config['stride'] = 2
+
         cur_k210.pool = K210Pool(pool_layer, pool_layer.config['size'], pool_layer.config['stride'],
                                  sess, dataset)
 
@@ -499,7 +510,6 @@ def gen_k210_layers(layers: [tensor_list_to_layer_list.LayerBase], sess, dataset
         cur_k210 = make_k210_layer(
             sess=sess, dataset=dataset,
             buffer=buffer,
-            idx=len(ret),
             last_min=last_min, last_max=last_max,
             eight_bit_mode=eight_bit_mode,
             range_from_batch=range_from_batch

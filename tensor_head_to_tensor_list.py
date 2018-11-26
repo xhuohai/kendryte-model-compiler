@@ -64,8 +64,12 @@ class PbConverter:
 
         return ret
 
-    def try_reshape(self):
+    def try_ignore(self):
         if self.ty_match(['Reshape']):
+            self.pop_src(0)
+            # self.dst.append(['???', reshape])
+            return True
+        if self.ty_match(['SpaceToBatchND']):
             self.pop_src(0)
             # self.dst.append(['???', reshape])
             return True
@@ -188,7 +192,7 @@ class PbConverter:
     def convert_step(self):
         converters = (
             self.try_input,
-            self.try_reshape,
+            self.try_ignore,
             self.try_convolutional,
             self.try_pool,
             self.try_depthwise_convolutional,
@@ -201,8 +205,7 @@ class PbConverter:
 
         if self.output_tensor is not None:
             raise ValueError('no converter for', self.output_tensor.op.type, 'name:', self.output_tensor.op.name)
-        else:
-            print('convert done.')
+
         return False
 
     def convert(self):
