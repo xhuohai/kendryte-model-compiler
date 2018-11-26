@@ -39,10 +39,7 @@ class LayerNet(LayerBase):
         self.name = 'net'
         self.config = {}
         self.tensor = info
-        if self.type_match(info, ['Placeholder']):
-            x, = info
-        else:
-            raise ValueError('not supported net info.')
+        x, = info
 
         _, self.config['width'], self.config['height'], self.config['channels'] = x.shape.as_list()
         self.config['batch'] = 1
@@ -56,6 +53,7 @@ class LayerConvolutional(LayerBase):
         self.config = {}
         self.tensor = info
         self.bias = None
+        self.batch_normalize_epsilon = 0
         batch_norm = None
         activation = None
         bias_add = None
@@ -64,6 +62,10 @@ class LayerConvolutional(LayerBase):
 
         if self.type_match(info, ['Add', 'Conv2D']):
             bias_add, conv2d = info
+        elif self.type_match(info, ['Add', 'Mul', 'Conv2D']):
+            bn_add, bn_mul, conv2d = info
+            bn_div, bn_sub = 1, 0
+            batch_norm = [bn_add, bn_mul, bn_div, bn_sub]
         elif self.type_match(info, ['BiasAdd', 'Conv2D']):
             bias_add, conv2d = info
         elif self.type_match(info, ['Relu', 'BiasAdd', 'Conv2D']):
@@ -116,7 +118,10 @@ class LayerConvolutional(LayerBase):
         if activation is not None:
             self.tensor_activation = activation
         elif batch_norm is not None:
-            self.tensor_activation = batch_norm
+            if isinstance(batch_norm, list):
+                self.tensor_activation = bn_add
+            else:
+                self.tensor_activation = batch_norm
         elif bias_add is not None:
             self.tensor_activation = bias_add
 
@@ -196,6 +201,7 @@ class LayerDepthwiseConvolutional(LayerBase):
         self.name = 'depthwise_convolutional'
         self.config = {}
         self.tensor = info
+        self.batch_normalize_epsilon = 0
         bias_add = None
         batch_norm = None
         if self.type_match(info, ['Relu', 'FusedBatchNorm', 'BiasAdd', 'DepthwiseConv2dNative']):
