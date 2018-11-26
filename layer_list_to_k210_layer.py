@@ -69,7 +69,7 @@ class K210Conv:
         self.w_bias = wmin
         assert (self.w_range > 0)
 
-        if self.input_shape[1:2] != self.output_shape[1:2]:
+        if self.input_shape[1:3] != self.output_shape[1:3]:
             # raise ValueError('conv2d {} should use padding=SAME'.format(input_tensor_name))
             print('[error]', 'conv2d {} should use padding=SAME'.format(input_tensor_name))
             self.input_shape = list(self.input_shape)
@@ -78,7 +78,17 @@ class K210Conv:
 
         if self.input_shape[1] < 4:
             tensor_height = self.input_shape[1]
-            raise ValueError('feature map required height>4 which {} height is {}'.format(input_tensor_name, tensor_height))
+            print('[error] feature map required height>4 which {} height is {}'.format(input_tensor_name, tensor_height))
+            self.input_shape = list(self.input_shape)
+            self.output_shape = list(self.output_shape)
+            old_input_wh = self.input_shape[1:3]
+            old_output_wh = self.output_shape[1:3]
+            self.input_shape[1:3] = [4,4]
+            self.output_shape[1:3] = [4,4]
+            notice = 'tensor {} heigh-width MUST padding from {}x{}=>{}x{} to 4x4=>4x4 in CPU before continue.'.format(input_tensor_name, *old_input_wh, *old_output_wh)
+            print('[notice] '+('='*71))
+            print('[notice] '+ notice)
+            print('[notice] '+('='*71))
 
     @staticmethod
     def q(value, scale, bias):
