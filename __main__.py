@@ -56,21 +56,24 @@ def load_graph(pb_file_path, tensor_output_name, tensor_input_name):
 
     return None
 
+
 def overwride_is_training_name(dataset, name):
     with tf.Session() as sess:
         try:
             is_training = sess.graph.get_operation_by_name(name)
             if is_training is not None:
-                dataset[name+':0'] = False
+                dataset[name + ':0'] = False
         except:
             pass
 
     return dataset
 
+
 def overwride_is_training(dataset):
     dataset = overwride_is_training_name(dataset, 'is_training')
     dataset = overwride_is_training_name(dataset, 'phase_train')
     return dataset
+
 
 def box_image(im_path, new_w, new_h):
     from PIL import Image
@@ -105,7 +108,7 @@ def convert(tensor_output, tensor_input, dataset, eight_bit_mode=False, input_mi
         layers = tensor_list_to_layer_list.convert_to_layers(sess, dataset, converter.dst)
         k210_layers = layer_list_to_k210_layer.gen_k210_layers(
             layers, sess, dataset,
-            range_from_batch=range_from_batch.RangeFromBatchMinMax(),
+            range_from_batch=range_from_batch.RangeFromBatchMeanMinsMaxs(),
             eight_bit_mode=eight_bit_mode,
             input_min=input_min,
             input_max=input_max
@@ -191,8 +194,8 @@ def main():
     else:
         dataset_file_list = (dataset_pic_path,)
 
-    dataset_val= np.array([box_image(path, image_w, image_h)[0].tolist() for path in dataset_file_list])
-    dataset = { dataset_input_name: dataset_val }
+    dataset_val = np.array([box_image(path, image_w, image_h)[0].tolist() for path in dataset_file_list])
+    dataset = {dataset_input_name: dataset_val}
     dataset = overwride_is_training(dataset)
 
     (output_code, output_bin) = convert(
