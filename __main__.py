@@ -115,7 +115,12 @@ def convert(tensor_output, tensor_input, dataset, eight_bit_mode=False, input_mi
         )
 
         output_code = k210_layer_to_c_code.gen_layer_list_code(k210_layers, eight_bit_mode, prefix)
-        output_bin = k210_layer_to_bin.gen_layer_bin(k210_layers, eight_bit_mode)
+        try:
+            output_bin = k210_layer_to_bin.gen_layer_bin(k210_layers, eight_bit_mode)
+        except Exception as e:
+            print(e)
+            output_bin = None
+
         return (output_code, output_bin)
 
 
@@ -212,10 +217,11 @@ def main():
         of.write(output_code)
     print('generate c code finish')
 
-    os.makedirs(os.path.dirname(output_bin_name), exist_ok=True)
-    with open(output_bin_name, 'wb') as of:
-        of.write(output_bin)
-    print('generate bin finish')
+    if output_bin is not None:
+        os.makedirs(os.path.dirname(output_bin_name), exist_ok=True)
+        with open(output_bin_name, 'wb') as of:
+            of.write(output_bin)
+        print('generate bin finish')
 
 
 if __name__ == '__main__':

@@ -71,6 +71,7 @@ class K210Conv:
 
         if self.input_shape[1:3] != self.output_shape[1:3]:
             # raise ValueError('conv2d {} should use padding=SAME'.format(input_tensor_name))
+
             print('[error]', 'conv2d {} should use padding=SAME'.format(input_tensor_name))
             self.input_shape = list(self.input_shape)
             self.input_shape[1] = self.output_shape[1]
@@ -443,8 +444,14 @@ def make_k210_layer(sess, dataset, buffer, last_min, last_max, eight_bit_mode, r
             or isinstance(buffer[-1], tensor_list_to_layer_list.LayerDepthwiseConvolutional):
         conv_layer = buffer.pop()
 
-        conv_input_shape = sess.run(conv_layer.tensor_conv_x, dataset).shape
-        conv_output_shape = sess.run(conv_layer.tensor_conv_y, dataset).shape
+        conv_input_shape = list(sess.run(conv_layer.tensor_conv_x, dataset).shape)
+        conv_output_shape = list(sess.run(conv_layer.tensor_conv_y, dataset).shape)
+
+        # hotfix stride=2
+        if conv_layer.tensor_conv_y.op.get_attr('strides')[1] == 2:
+            conv_output_shape[1:3] = [conv_output_shape[1]*2, conv_output_shape[2]*2]
+            conv_input_shape[1:3] = conv_output_shape[1:3]
+
         wmin, wmax, _ = range_from_batch(sess, conv_layer.tensor_conv_w, dataset, is_weights=True)
         cur_k210.conv = K210Conv(
             conv_layer.weights, conv_layer.tensor_conv_x.name,
@@ -475,14 +482,14 @@ def make_k210_layer(sess, dataset, buffer, last_min, last_max, eight_bit_mode, r
         assert (isinstance(pool_layer, tensor_list_to_layer_list.LayerPool))
         pool_size = pool_layer.config['size']
         pool_stride = pool_layer.config['stride']
-        pool_type = pool_layer.tensor_pool.tensor.op.name
+        pool_type = pool_layer.tensor_pool.op.name
         # hotfix
         if pool_stride == 1 and conv_layer.config['stride'] == 2:
             pool_size = 2
 
-        if pool_size== 2 and pool_layer.tensor_pool.tensor.op.inputs[0].shape[3] % 2 != 0:
-            if pool_layer.tensor_pool.tensor.op.get_attr('padding') == b'SAME':
-                raise ValueError("at {} unsupport padding mode SAME of pooling with size == 2".format(pool_layer.tensor_pool.tensor.name))
+        if pool_size== 2 and pool_layer.tensor_pool.op.inputs[0].shape[3] % 2 != 0:
+            if pool_layer.tensor_pool.op.get_attr('padding') == b'SAME':
+                raise ValueError("at {} unsupport padding mode SAME of pooling with size == 2".format(pool_layer.tensor_pool.name))
         cur_k210.pool = K210Pool(pool_type, pool_size, pool_stride)
     # hotfix
     elif conv_layer.config['stride'] == 2:
