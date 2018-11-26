@@ -248,9 +248,11 @@ def gen_layer_code(dlayer, layer_cfg):
 def gen_bn_code(dlayer, layer_cfg):
     bn_list = dlayer[0]['kernel_pool_type_cfg']['bwsx_base_addr']
     layer_cfg.bn_len = len(bn_list) * 8
+    layer_cfg.bn_arg = bytearray(layer_cfg.bn_len)
+    i = 0
     for bn in bn_list:
-           layer_cfg.bn_arg += (int(bn['norm_mul'], 16) + (int(bn['norm_add'], 16) << 24) + (int(bn['norm_shift']) << 56)).to_bytes(8, 'little')
-
+            layer_cfg.bn_arg[i:i+8] = (int(bn['norm_mul'], 16) + (int(bn['norm_add'], 16) << 24) + (int(bn['norm_shift']) << 56)).to_bytes(8, 'little')
+            i += 8
 
 def gen_act_code(dlayer, layer_cfg):
     act_list = dlayer[0]['kernel_calc_type_cfg']['active_addr']
@@ -269,12 +271,18 @@ def gen_weights_code(dlayer, layer_cfg, eight_bit_mode):
     weights = dlayer[0]['kernel_load_cfg']['para_start_addr']
     if eight_bit_mode:
         layer_cfg.weights_len = len(weights)
+        layer_cfg.weights_arg = bytearray(layer_cfg.weights_len)
+        i = 0
         for item in weights:
-            layer_cfg.weights_arg += int(signed_to_hex(item, 8), 16).to_bytes(1, 'little')
+            layer_cfg.weights_arg[i] = int(signed_to_hex(item, 8), 16).to_bytes(1, 'little')
+            i += 1
     else:
         layer_cfg.weights_len = len(weights) * 2
+        layer_cfg.weights_arg = bytearray(layer_cfg.weights_len)
+        i = 0
         for item in weights:
-            layer_cfg.weights_arg += int(signed_to_hex(item, 16), 16).to_bytes(2, 'little')
+            layer_cfg.weights_arg[i:i+2] = int(signed_to_hex(item, 16), 16).to_bytes(2, 'little')
+            i += 2
 
 
 class layer_config_struct():
