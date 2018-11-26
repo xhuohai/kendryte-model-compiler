@@ -202,6 +202,8 @@ class LayerDepthwiseConvolutional(LayerBase):
             activation, batch_norm, bias_add, dwconv = info
         elif self.type_match(info, ['Relu', 'BiasAdd', 'DepthwiseConv2dNative']):
             activation, bias_add, dwconv = info
+        elif self.type_match(info, ['Relu6', 'BiasAdd', 'DepthwiseConv2dNative']):
+            activation, bias_add, dwconv = info
         elif self.type_match(info, ['Relu6', 'FusedBatchNorm', 'BiasAdd', 'DepthwiseConv2dNative']):
             activation, batch_norm, bias_add, dwconv = info
         elif self.type_match(info, ['Relu6', 'FusedBatchNorm', 'DepthwiseConv2dNative']):
