@@ -63,8 +63,8 @@ def gen_layer_struct(klayer: layer_list_to_k210_layer.K210Layer, idx: int):
     img_ram_size = 2 * 1024 * 1024
 
     conv_arg = klayer.conv and klayer.conv.to_k210() or default_conv_arg
-    act_arg = klayer.act and klayer.act.to_k210() or default_act_arg
     bn_arg = klayer.bn and klayer.bn.to_k210(conv_arg['swsx']) or default_bn_arg
+    act_arg = klayer.act and klayer.act.to_k210(bn_arg['hotfix_magic']) or default_act_arg
     pool_arg = klayer.pool and klayer.pool.to_k210() or default_pool_arg
     io_arg = klayer.to_k210(idx)
 

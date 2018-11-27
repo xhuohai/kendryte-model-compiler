@@ -222,14 +222,20 @@ class K210BN:
 
     @staticmethod
     def get_bn(scale, bias):
-        norm_shift, norm_mul = pow_next_log_of_2(scale, 24)
+        norm_shift, norm_mul = 8, scale * np.power(2,8)#pow_next_log_of_2(scale, 24)
         return {'norm_mul': signed_to_hex(norm_mul, 24), 'norm_add': signed_to_hex(bias, 32), 'norm_shift': norm_shift}
 
     def to_k210(self, swsx=1):
-        __hotfix_magic = hotfix_magic_1(self.eight_bit_mode)
         sqrt_var = np.sqrt(self.var + self.epsilon)
-        scale = swsx * self.gamma / sqrt_var * __hotfix_magic
-        bias = (self.beta - self.gamma * self.mean / sqrt_var) * __hotfix_magic
+        max_scale_temp = max(swsx * self.gamma / sqrt_var)
+        if max_scale_temp < 1e-5:
+            max_scale_temp = 1.1e-5
+        log_scale_temp_max = 7-np.floor(np.log2(max_scale_temp))
+        if max_scale_temp >= np.power(2,15):
+            log_scale_temp_max = 0
+        hotfix_magic = np.power(2,log_scale_temp_max)
+        scale = swsx * self.gamma / sqrt_var * hotfix_magic
+        bias = (self.beta - self.gamma * self.mean / sqrt_var) * hotfix_magic
 
         load_para = 1
         bwsx_base_addr = [
@@ -319,13 +325,13 @@ class K210Act:
         return ret_shift, dydx
 
     @staticmethod
-    def table_to_act(act_table, min_y, max_y, eight_bit_mode):
+    def table_to_act(act_table, min_y, max_y, __hotfix_magic, eight_bit_mode):
         def act_table_aux(x, y, dydx):
             y_scale = (max_y - min_y) / 255
             y_bias = min_y
-            x_fix = x * hotfix_magic_1(eight_bit_mode)
+            x_fix = x * __hotfix_magic
             y_fix = (y - y_bias) / y_scale
-            dydx_fix = dydx / y_scale / hotfix_magic_1(eight_bit_mode)
+            dydx_fix = dydx / y_scale / __hotfix_magic
 
             yf_q = round(y_fix)
             yf_err = y_fix - yf_q
@@ -341,7 +347,7 @@ class K210Act:
 
         return [ret_aux(x, y, dydx) for x, y, dydx in act_table]
 
-    def to_k210(self):
+    def to_k210(self, __hotfix_magic):
         act_tab = None
         if self.name == 'leaky':
             act_tab = list(K210Act.leaky_table(self.min_y, self.max_y))
@@ -354,7 +360,7 @@ class K210Act:
         else:
             print(self.name, ' active is not supported.')
             assert (None)
-        return {'active_addr': K210Act.table_to_act(list(act_tab), self.min_y, self.max_y, self.eight_bit_mode)[:16]}
+        return {'active_addr': K210Act.table_to_act(list(act_tab), self.min_y, self.max_y, __hotfix_magic, self.eight_bit_mode)[:16]}
 
 
 class K210Pool:
